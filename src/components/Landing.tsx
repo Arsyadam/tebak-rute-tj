@@ -159,8 +159,13 @@ export function Landing({ data, onStart }: Props) {
   return (
     <div className="relative h-full w-full overflow-hidden bg-[#e9ecef] text-[#1c1f26]">
       <div className="absolute inset-0">
-        <Map theme="light" center={JAKARTA_CENTER} zoom={11.2} className="h-full w-full opacity-80" />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#e9ecef]/90 via-[#e9ecef]/55 to-[#e9ecef]" />
+        <Map
+          theme="light"
+          center={JAKARTA_CENTER}
+          zoom={11.2}
+          className="pointer-events-none h-full w-full opacity-80"
+        />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#e9ecef]/90 via-[#e9ecef]/55 to-[#e9ecef]" />
       </div>
 
       <div className="relative z-10 mx-auto grid h-full w-full max-w-6xl gap-4 overflow-auto px-4 py-6 sm:px-6 lg:grid-cols-[1.4fr_0.9fr]">
