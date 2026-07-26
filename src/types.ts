@@ -1,9 +1,17 @@
-export type Difficulty = 'easy' | 'medium' | 'hard' | 'krl'
+export type Difficulty =
+  | 'easy'
+  | 'medium'
+  | 'hard'
+  | 'krl'
+  | 'mrt'
+  | 'lrt-jabodebek'
+  | 'lrt-jabodetabek'
 
 export type GameMode = 'name-stops' | 'guess-route' | 'plan-trip'
 
-
 export type PlayStyle = 'solo' | 'friends'
+
+export type Agency = 'tj' | 'krl' | 'mrt' | 'lrt-jabodebek' | 'lrt-jabodetabek'
 
 export interface Stop {
   id: string
@@ -29,7 +37,7 @@ export interface Route {
   code: string
   name: string
   desc: string
-  agency?: 'tj' | 'krl' | string
+  agency?: Agency | string
   color: string
   textColor: string
   difficulty: Difficulty
@@ -53,6 +61,8 @@ export interface UserProfile {
   name: string
   color: string
   createdAt: string
+  email?: string
+  isGuest?: boolean
 }
 
 export interface LeaderboardEntry {
@@ -63,6 +73,19 @@ export interface LeaderboardEntry {
   mode: GameMode
   playStyle: PlayStyle
   at: string
+}
+
+export interface GameRoundRecord {
+  roundIndex: number
+  correctAnswer: string
+  score: number
+  hintUsed: boolean
+}
+
+export interface GameResult {
+  score: number
+  hintCount: number
+  rounds: GameRoundRecord[]
 }
 
 export interface RoundConfig {

@@ -1,5 +1,5 @@
-const RECENT_ROUTES_KEY = 'tj-recent-routes'
-const RECENT_JOURNEYS_KEY = 'tj-recent-journeys'
+const RECENT_ROUTES_KEY = 'transitguestr-recent-routes'
+const RECENT_JOURNEYS_KEY = 'transitguestr-recent-journeys'
 const MAX_RECENT = 40
 
 function loadList(key: string): string[] {

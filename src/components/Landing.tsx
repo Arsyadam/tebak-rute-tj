@@ -12,13 +12,16 @@ import { Separator } from '@/components/ui/separator'
 import StatusIndicator from '@/components/8starlabs-ui/status-indicator'
 import { TransportBadge } from '@/components/8starlabs-ui/transport-badge'
 import { RouteBadge } from '@/components/RouteBadge'
-import type { Difficulty, GameData, GameMode, PlayStyle, UserProfile } from '@/types'
+import { AdSlot } from '@/components/AdSlot'
+import type { Difficulty, GameData, GameMode, LeaderboardEntry, PlayStyle } from '@/types'
 import { JAKARTA_CENTER, MODE_META } from '@/lib/game'
-import { loadLeaderboard, loadUser, signInGuest, signOut } from '@/lib/auth'
+import { loadLeaderboard } from '@/lib/auth'
+import { useAuth } from '@/contexts/AuthContext'
 import { sound } from '@/lib/sound'
 import { GameRoom } from '@/lib/multiplayer'
+import type { RoomPlayer } from '@/lib/multiplayer'
 import { cn } from '@/lib/utils'
-import { Trophy, Users, User } from 'lucide-react'
+import { Trophy, Users, User, Mail, LogIn } from 'lucide-react'
 
 export type StartPayload = {
   mode: GameMode
@@ -35,44 +38,118 @@ interface Props {
 }
 
 export function Landing({ data, onStart }: Props) {
-  const [user, setUser] = useState<UserProfile | null>(() => loadUser())
-  const [name, setName] = useState(user?.name ?? '')
+  const { user, loading: authLoading, loginGuest, loginEmail, registerEmail, logout } = useAuth()
+  const [authMode, setAuthMode] = useState<'guest' | 'login' | 'register'>('guest')
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [authBusy, setAuthBusy] = useState(false)
+  const [authError, setAuthError] = useState('')
+
   const [mode, setMode] = useState<GameMode>('name-stops')
   const [difficulty, setDifficulty] = useState<Difficulty | 'all'>('easy')
   const [playStyle, setPlayStyle] = useState<PlayStyle>('solo')
   const [roomCode, setRoomCode] = useState('')
   const [room, setRoom] = useState<GameRoom | null>(null)
-  const [players, setPlayers] = useState(
-    user ? [{ id: user.id, name: user.name, color: user.color, score: 0 }] : [],
-  )
+  const [players, setPlayers] = useState<RoomPlayer[]>([])
   const [status, setStatus] = useState('')
   const [busy, setBusy] = useState(false)
-  const [leaderboard, setLeaderboard] = useState(() => loadLeaderboard())
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
 
   useEffect(() => {
-    setLeaderboard(loadLeaderboard())
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('room')
+    if (code) {
+      setRoomCode(code.toUpperCase())
+      setPlayStyle('friends')
+    }
+  }, [])
+
+  useEffect(() => {
+    loadLeaderboard()
+      .then((list) => setLeaderboard(list || []))
+      .catch(() => setLeaderboard([]))
+  }, [user])
+
+  useEffect(() => {
+    if (!user) {
+      setPlayers([])
+      return
+    }
+    setPlayers([{ id: user.id, name: user.name, color: user.color, score: 0 }])
   }, [user])
 
   const canPlay = Boolean(user)
 
-  const login = () => {
-    sound.unlock()
-    sound.join()
-    const u = signInGuest(name)
-    setUser(u)
-    setName(u.name)
-    setPlayers([{ id: u.id, name: u.name, color: u.color, score: 0 }])
+  const submitGuest = async () => {
+    setAuthBusy(true)
+    setAuthError('')
+    try {
+      sound.unlock()
+      sound.join()
+      await loginGuest(name)
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : 'Gagal masuk')
+    } finally {
+      setAuthBusy(false)
+    }
   }
 
-  const logout = () => {
+  const submitEmail = async () => {
+    if (!email || !password) {
+      setAuthError('Email dan password wajib diisi')
+      return
+    }
+    setAuthBusy(true)
+    setAuthError('')
+    try {
+      sound.unlock()
+      sound.join()
+      if (authMode === 'register') {
+        await registerEmail(email, password, name || email.split('@')[0])
+      } else {
+        await loginEmail(email, password)
+      }
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : 'Gagal masuk')
+    } finally {
+      setAuthBusy(false)
+    }
+  }
+
+  const doLogout = async () => {
     if (room) {
       room.destroy()
       setRoom(null)
     }
-    signOut()
-    setUser(null)
+    await logout()
     setPlayers([])
+    setRoomCode('')
     sound.click()
+  }
+
+  const googleLogin = () => {
+    const apiUrl = import.meta.env.VITE_API_URL || '/api'
+    window.location.href = `${apiUrl}/auth/google`
+  }
+
+  const startSolo = () => {
+    if (!canPlay) return
+    sound.unlock()
+    onStart({
+      mode,
+      difficulty,
+      count: 5,
+      playStyle: 'solo',
+      room: null,
+      seed: Date.now(),
+    })
+  }
+
+  const startFriends = () => {
+    if (!room || !room.isHost) return
+    sound.unlock()
+    room.startGame(Date.now(), mode, difficulty)
   }
 
   const createRoom = async () => {
@@ -81,7 +158,7 @@ export function Landing({ data, onStart }: Props) {
     setStatus('Membuat room…')
     try {
       sound.unlock()
-      const r = await GameRoom.host(user)
+      const r = await GameRoom.host(user, mode, difficulty)
       r.onRoster = setPlayers
       r.onStatus = setStatus
       r.onStart = ({ seed, mode: m, difficulty: d }) => {
@@ -99,20 +176,19 @@ export function Landing({ data, onStart }: Props) {
       setStatus(`Kode room: ${r.code}`)
       sound.join()
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : 'Gagal buat room')
-      sound.wrong()
+      setStatus(e instanceof Error ? e.message : 'Gagal membuat room')
     } finally {
       setBusy(false)
     }
   }
 
   const joinRoom = async () => {
-    if (!user || !roomCode.trim()) return
+    if (!user || !roomCode) return
     setBusy(true)
-    setStatus('Menghubungkan…')
+    setStatus(`Gabung room ${roomCode.toUpperCase()}…`)
     try {
       sound.unlock()
-      const r = await GameRoom.join(user, roomCode.trim())
+      const r = await GameRoom.join(user, roomCode)
       r.onRoster = setPlayers
       r.onStatus = setStatus
       r.onStart = ({ seed, mode: m, difficulty: d }) => {
@@ -129,44 +205,26 @@ export function Landing({ data, onStart }: Props) {
       setPlayStyle('friends')
       sound.join()
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : 'Gagal join room')
-      sound.wrong()
+      setStatus(e instanceof Error ? e.message : 'Gagal gabung room')
     } finally {
       setBusy(false)
     }
   }
 
-  const startSolo = () => {
-    if (!user) return
-    sound.unlock()
-    sound.click()
-    onStart({
-      mode,
-      difficulty,
-      count: mode === 'name-stops' ? 3 : mode === 'plan-trip' ? 5 : 5,
-      playStyle: 'solo',
-      room: null,
-      seed: Date.now() ^ (Math.random() * 0xffffffff) >>> 0,
-    })
-  }
-
-  const startFriends = () => {
-    if (!room || !user) return
-    if (!room.isHost) {
-      setStatus('Tunggu host memulai game.')
-      return
-    }
-    sound.click()
-    room.startGame(Date.now(), mode, difficulty)
+  if (authLoading) {
+    return (
+      <div className="flex h-full items-center justify-center bg-[#e9ecef] text-[#667085]">
+        Memuat sesi…
+      </div>
+    )
   }
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-[#e9ecef] text-[#1c1f26]">
-      <div className="absolute inset-0">
+    <div className="relative h-full overflow-auto bg-[#e9ecef]">
+      <div className="pointer-events-none fixed inset-0">
         <Map
-          theme="light"
           center={JAKARTA_CENTER}
-          zoom={11.2}
+          zoom={11}
           className="pointer-events-none h-full w-full opacity-80"
         />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#e9ecef]/90 via-[#e9ecef]/55 to-[#e9ecef]" />
@@ -175,13 +233,13 @@ export function Landing({ data, onStart }: Props) {
       <div className="relative z-10 mx-auto grid h-full w-full max-w-6xl gap-4 overflow-auto px-4 py-6 sm:px-6 lg:grid-cols-[1.4fr_0.9fr]">
         <section className="flex flex-col">
           <p className="font-display text-4xl font-extrabold tracking-tight text-primary sm:text-5xl">
-            Tebak Jalur TJ
+            TransitGuessr
           </p>
           <h1 className="mt-2 max-w-xl font-display text-2xl leading-tight font-bold sm:text-3xl">
-            Drop in. Guess the line. Race your friends.
+            Tebak rute. Tebak halte. Lomba bareng teman.
           </h1>
           <p className="mt-3 max-w-lg text-sm text-muted-foreground sm:text-base">
-            Data GTFS resmi Transjakarta + koridor KRL Jabodetabek. Warna jalur sesuai aslinya.
+            Data GTFS Transjakarta, KRL, MRT, dan LRT Jabodebek / Jabodetabek. Warna jalur sesuai aslinya.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
             <RouteBadge code="1" color="#D01C2A" agency="tj" size="sm" />
@@ -196,20 +254,93 @@ export function Landing({ data, onStart }: Props) {
             <Card className="mt-6 border-black/8 bg-white/90 shadow-lg backdrop-blur">
               <CardHeader>
                 <CardTitle className="font-display">Masuk dulu</CardTitle>
-                <CardDescription>
-                  Nama panggilan buat solo / bareng temen & leaderboard.
-                </CardDescription>
+                <CardDescription>Pilih cara masuk: guest, email, atau Google.</CardDescription>
               </CardHeader>
-              <CardContent className="flex gap-2">
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Nama kamu"
-                  onKeyDown={(e) => e.key === 'Enter' && login()}
-                />
-                <Button className="bg-primary" onClick={login} withArrow>
-                  Lanjut
+              <CardContent>
+                <Tabs value={authMode} onValueChange={(v) => setAuthMode(v as typeof authMode)}>
+                  <TabsList className="w-full">
+                    <TabsTrigger value="guest" className="gap-1.5">
+                      <User className="size-3.5" /> Guest
+                    </TabsTrigger>
+                    <TabsTrigger value="login" className="gap-1.5">
+                      <LogIn className="size-3.5" /> Login
+                    </TabsTrigger>
+                    <TabsTrigger value="register" className="gap-1.5">
+                      <Mail className="size-3.5" /> Daftar
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="guest" className="mt-4 space-y-3">
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Nama panggilan"
+                      onKeyDown={(e) => e.key === 'Enter' && submitGuest()}
+                    />
+                    <Button className="w-full bg-primary" onClick={submitGuest} disabled={authBusy}>
+                      Lanjut sebagai guest
+                    </Button>
+                  </TabsContent>
+
+                  <TabsContent value="login" className="mt-4 space-y-3">
+                    <Input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Email"
+                      onKeyDown={(e) => e.key === 'Enter' && submitEmail()}
+                    />
+                    <Input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Password"
+                      onKeyDown={(e) => e.key === 'Enter' && submitEmail()}
+                    />
+                    <Button className="w-full bg-primary" onClick={submitEmail} disabled={authBusy}>
+                      Login
+                    </Button>
+                  </TabsContent>
+
+                  <TabsContent value="register" className="mt-4 space-y-3">
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Nama"
+                      onKeyDown={(e) => e.key === 'Enter' && submitEmail()}
+                    />
+                    <Input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Email"
+                      onKeyDown={(e) => e.key === 'Enter' && submitEmail()}
+                    />
+                    <Input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Password"
+                      onKeyDown={(e) => e.key === 'Enter' && submitEmail()}
+                    />
+                    <Button className="w-full bg-primary" onClick={submitEmail} disabled={authBusy}>
+                      Daftar
+                    </Button>
+                  </TabsContent>
+                </Tabs>
+
+                <div className="relative my-4">
+                  <Separator />
+                  <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-xs text-muted-foreground">
+                    atau
+                  </span>
+                </div>
+
+                <Button variant="outline" className="w-full" onClick={googleLogin} disabled={authBusy}>
+                  Lanjutkan dengan Google
                 </Button>
+
+                {authError ? <p className="text-sm text-rose-500">{authError}</p> : null}
               </CardContent>
             </Card>
           ) : (
@@ -221,9 +352,11 @@ export function Landing({ data, onStart }: Props) {
               </Avatar>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold">{user.name}</p>
-                <p className="text-xs text-[#667085]">Guest · tersimpan di device ini</p>
+                <p className="text-xs text-[#667085]">
+                  {user.isGuest ? 'Guest' : user.email || 'Akun tersimpan'}
+                </p>
               </div>
-              <Button variant="ghost" onClick={logout}>
+              <Button variant="ghost" onClick={doLogout}>
                 Ganti
               </Button>
             </div>
@@ -251,7 +384,6 @@ export function Landing({ data, onStart }: Props) {
                 disabled={!canPlay}
                 className="h-12 w-full text-base font-bold"
                 onClick={startSolo}
-                withArrow
               >
                 Start solo
               </Button>
@@ -261,11 +393,7 @@ export function Landing({ data, onStart }: Props) {
               <ModePicker mode={mode} setMode={setMode} disabled={!canPlay} />
               <DifficultyPicker difficulty={difficulty} setDifficulty={setDifficulty} />
               <div className="grid gap-2 sm:grid-cols-2">
-                <Button
-                  disabled={!canPlay || busy}
-                  onClick={createRoom}
-                  withArrow
-                >
+                <Button disabled={!canPlay || busy} onClick={createRoom}>
                   Buat room
                 </Button>
                 <div className="flex gap-2">
@@ -288,6 +416,25 @@ export function Landing({ data, onStart }: Props) {
                   size="sm"
                 />
               ) : null}
+              {room ? (
+                <div className="rounded-xl border border-black/8 bg-white/90 p-3 text-sm">
+                  <p className="mb-1.5 text-xs text-muted-foreground">Bagikan link room:</p>
+                  <div className="flex gap-2">
+                    <Input
+                      value={`${window.location.origin}/?room=${room.code}`}
+                      readOnly
+                      className="h-9 text-xs"
+                    />
+                    <Button
+                      variant="secondary"
+                      className="h-9"
+                      onClick={() => navigator.clipboard.writeText(`${window.location.origin}/?room=${room.code}`)}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
               <Separator className="my-1" />
               {players.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
@@ -304,7 +451,6 @@ export function Landing({ data, onStart }: Props) {
                 disabled={!canPlay || !room || !room.isHost}
                 className="h-12 w-full text-base font-bold"
                 onClick={startFriends}
-                withArrow
               >
                 {room?.isHost ? 'Start race' : 'Menunggu host…'}
               </Button>
@@ -312,13 +458,13 @@ export function Landing({ data, onStart }: Props) {
           </Tabs>
         </section>
 
-        <aside>
+        <aside className="space-y-4">
           <Card className="border-black/8 bg-white/90 shadow-lg backdrop-blur">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 font-display text-lg">
                 <Trophy className="size-4 text-amber-500" /> Leaderboard
               </CardTitle>
-              <CardDescription>Skor terbaik di device ini</CardDescription>
+              <CardDescription>Skor terbaik global</CardDescription>
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-72 pr-3">
@@ -347,6 +493,11 @@ export function Landing({ data, onStart }: Props) {
               </ScrollArea>
             </CardContent>
           </Card>
+          <AdSlot
+            slot="landing-sidebar"
+            format="auto"
+            className="min-h-[100px] rounded-xl border border-black/8 bg-white/90 p-2 shadow-lg backdrop-blur"
+          />
         </aside>
       </div>
     </div>
@@ -411,6 +562,9 @@ function DifficultyPicker({
             ['medium', 'Integrasi'],
             ['hard', 'Mikrotrans'],
             ['krl', 'KRL'],
+            ['mrt', 'MRT'],
+            ['lrt-jabodebek', 'LRT Jabodebek'],
+            ['lrt-jabodetabek', 'LRT Jabodetabek'],
             ['all', 'Semua'],
           ] as const
         ).map(([value, label]) => (
@@ -420,7 +574,6 @@ function DifficultyPicker({
             variant={difficulty === value ? 'default' : 'secondary'}
             className="rounded-full"
             onClick={() => setDifficulty(value)}
-            disableHoverPop
           >
             {label}
           </Button>

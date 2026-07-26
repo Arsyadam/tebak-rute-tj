@@ -2,6 +2,10 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.*
+!.env.example
+!.env.example.*
 .DS_Store
 
 # Logs
@@ -13,6 +17,9 @@ npm-debug.log*
 data/gtfs.zip
 data/gtfs/
 data/gtfs-krl/
+data/gtfs-mrt/
+data/gtfs-lrt-jabodebek/
+data/gtfs-lrt-jabodetabek/
 data/krl/
 
 # Editor

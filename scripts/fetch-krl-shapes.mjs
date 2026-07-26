@@ -99,7 +99,7 @@ async function fetchOverpass(query) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          'User-Agent': 'tebak-jalur-tj/1.0 (KRL shape fetch; contact: local-dev)',
+          'User-Agent': 'transit-guessr/1.0 (KRL shape fetch; contact: local-dev)',
           Accept: 'application/json',
         },
         body: new URLSearchParams({ data: query }),

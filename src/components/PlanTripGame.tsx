@@ -32,13 +32,15 @@ import {
 } from '@/lib/journey'
 import { sound } from '@/lib/sound'
 import { cn } from '@/lib/utils'
-import { ArrowRight, X } from 'lucide-react'
+import { HINT_PENALTY } from '@/lib/game'
+import { ArrowRight, X, Lightbulb } from 'lucide-react'
+import type { GameRoundRecord, GameResult } from '@/types'
 
 interface Props {
   data: GameData
   journeys: Journey[]
   onExit: () => void
-  onFinished: (score: number) => void
+  onFinished: (result: GameResult) => void
 }
 
 type PreviewLine = {
@@ -76,7 +78,9 @@ export function PlanTripGame({ data, journeys, onExit, onFinished }: Props) {
   const [phase, setPhase] = useState<'play' | 'reveal' | 'done'>('play')
   const [score, setScore] = useState(0)
   const [lastOk, setLastOk] = useState(false)
+  const [hintUsed, setHintUsed] = useState(false)
   const scoreRef = useRef(0)
+  const roundsRef = useRef<GameRoundRecord[]>([])
 
   const journey = journeys[index]
   const needsTransfer = (journey?.legs.length ?? 0) > 1
@@ -205,6 +209,21 @@ export function PlanTripGame({ data, journeys, onExit, onFinished }: Props) {
       ok = okFirst && okTransfer && okSecond
     }
 
+    if (hintUsed) {
+      points = Math.floor(points * HINT_PENALTY)
+    }
+
+    const correctAnswer = needsTransfer
+      ? `${leg1.routeCode} → ${journey.transferName ?? ''} → ${journey.legs[1]?.routeCode ?? ''}`
+      : leg1.routeCode
+
+    roundsRef.current.push({
+      roundIndex: index,
+      correctAnswer,
+      score: points,
+      hintUsed,
+    })
+
     setLastOk(ok)
     if (points > 0) {
       const next = scoreRef.current + points
@@ -216,17 +235,37 @@ export function PlanTripGame({ data, journeys, onExit, onFinished }: Props) {
     setPhase('reveal')
   }
 
+  const useHint = () => {
+    if (phase !== 'play' || hintUsed) return
+    const leg1 = journey.legs[0]!
+    if (!firstRoute) {
+      setFirstRoute(leg1.routeCode)
+    } else if (needsTransfer && !transfer) {
+      setTransfer(journey.transferName || '')
+    } else if (needsTransfer && !secondRoute) {
+      setTransfer(journey.transferName || '')
+      setSecondRoute(journey.legs[1]?.routeCode || '')
+    }
+    setHintUsed(true)
+    sound.click()
+  }
+
   const finishOrNext = () => {
     if (index + 1 >= journeys.length) {
       setPhase('done')
       sound.win()
-      onFinished(scoreRef.current)
+      onFinished({
+        score: scoreRef.current,
+        hintCount: roundsRef.current.filter((r) => r.hintUsed).length,
+        rounds: roundsRef.current,
+      })
       return
     }
     setIndex((i) => i + 1)
     setFirstRoute('')
     setTransfer('')
     setSecondRoute('')
+    setHintUsed(false)
     setPhase('play')
     sound.click()
   }
@@ -408,20 +447,31 @@ export function PlanTripGame({ data, journeys, onExit, onFinished }: Props) {
         )}
       </div>
 
-      <div className="border-t border-border/60 p-4">
+      <div className="border-t border-border/60 p-4 space-y-2">
         {phase === 'reveal' ? (
           <Button className="h-11 w-full" onClick={finishOrNext} withArrow>
             {index + 1 >= journeys.length ? 'Lihat skor' : 'Next'}
           </Button>
         ) : (
-          <Button
-            className="h-11 w-full font-bold"
-            disabled={!canSubmit}
-            onClick={submit}
-            withArrow
-          >
-            Guess
-          </Button>
+          <>
+            <Button
+              className="h-11 w-full font-bold"
+              disabled={!canSubmit}
+              onClick={submit}
+              withArrow
+            >
+              Guess
+            </Button>
+            <Button
+              variant="outline"
+              className="h-10 w-full gap-2"
+              disabled={hintUsed}
+              onClick={useHint}
+            >
+              <Lightbulb className="size-4" />
+              {hintUsed ? 'Hint sudah dipakai' : 'Hint (-75% poin)'}
+            </Button>
+          </>
         )}
       </div>
     </div>

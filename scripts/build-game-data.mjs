@@ -1,7 +1,8 @@
 /**
- * Build compact quiz dataset from Transjakarta GTFS (+ optional KRL GTFS).
- * TJ: data/gtfs (official https://gtfs.transjakarta.co.id/files/file_gtfs.zip)
+ * Build compact quiz dataset from Transjakarta GTFS + KRL + MRT + LRT GTFS.
+ * TJ: data/gtfs (https://gtfs.transjakarta.co.id/files/file_gtfs.zip)
  * KRL: data/gtfs-krl (generated via npm run build:krl — OSM + corridor order)
+ * MRT/LRT: data/gtfs-* (generated via npm run build:rail)
  *
  * Uses route_list.txt for canonical trip per route+direction.
  */
@@ -29,6 +30,24 @@ const FEEDS = [
     id: 'krl',
     dir: path.join(root, 'data', 'gtfs-krl'),
     source: 'generated:KRL Jabodetabek (OSM + corridor order)',
+    required: false,
+  },
+  {
+    id: 'mrt',
+    dir: path.join(root, 'data', 'gtfs-mrt'),
+    source: 'generated:MRT Jakarta (Jakarta GIS + manual coordinates)',
+    required: false,
+  },
+  {
+    id: 'lrt-jabodebek',
+    dir: path.join(root, 'data', 'gtfs-lrt-jabodebek'),
+    source: 'generated:LRT Jabodebek (Jakarta GIS + manual coordinates)',
+    required: false,
+  },
+  {
+    id: 'lrt-jabodetabek',
+    dir: path.join(root, 'data', 'gtfs-lrt-jabodetabek'),
+    source: 'generated:LRT Jabodetabek (OSM relation 10693161)',
     required: false,
   },
 ]
@@ -88,6 +107,9 @@ async function readCsv(filePath) {
 
 function difficultyFromDesc(desc, feedId) {
   if (feedId === 'krl' || desc === 'KRL') return 'krl'
+  if (feedId === 'mrt') return 'mrt'
+  if (feedId === 'lrt-jabodebek') return 'lrt-jabodebek'
+  if (feedId === 'lrt-jabodetabek') return 'lrt-jabodetabek'
   if (desc === 'BRT') return 'easy'
   if (desc === 'Angkutan Umum Integrasi' || desc === 'Transjabodetabek') return 'medium'
   return 'hard'

@@ -22,13 +22,15 @@ import type { GameData } from '@/types'
 import { type RouteRound } from '@/lib/game'
 import { sound } from '@/lib/sound'
 import { cn } from '@/lib/utils'
-import { X } from 'lucide-react'
+import { HINT_PENALTY } from '@/lib/game'
+import { X, Lightbulb } from 'lucide-react'
+import type { GameResult, GameRoundRecord } from '@/types'
 
 interface Props {
   data: GameData
   rounds: RouteRound[]
   onExit: () => void
-  onFinished: (score: number) => void
+  onFinished: (result: GameResult) => void
 }
 
 export function GuessRouteGame({ data, rounds, onExit, onFinished }: Props) {
@@ -37,7 +39,10 @@ export function GuessRouteGame({ data, rounds, onExit, onFinished }: Props) {
   const [phase, setPhase] = useState<'play' | 'reveal' | 'done'>('play')
   const [score, setScore] = useState(0)
   const [lastOk, setLastOk] = useState(false)
+  const [hintUsed, setHintUsed] = useState(false)
+  const [eliminated, setEliminated] = useState<Set<string>>(new Set())
   const scoreRef = useRef(0)
+  const roundRecordsRef = useRef<GameRoundRecord[]>([])
 
   const round = rounds[index]
   const routeColor = round?.route.color || '#0b5ea8'
@@ -65,6 +70,11 @@ export function GuessRouteGame({ data, rounds, onExit, onFinished }: Props) {
     return [...codes].sort((a, b) => a.localeCompare(b, 'id'))
   }, [data, round])
 
+  const availableOptions = useMemo(
+    () => options.filter((code) => !eliminated.has(code)),
+    [options, eliminated],
+  )
+
   if (!round) {
     return (
       <div className="flex h-full items-center justify-center gap-3">
@@ -90,9 +100,19 @@ export function GuessRouteGame({ data, rounds, onExit, onFinished }: Props) {
     if (!choice || phase !== 'play') return
     sound.guess()
     const ok = choice === round.route.code
+    let points = ok ? 1000 : 0
+    if (hintUsed) {
+      points = Math.floor(points * HINT_PENALTY)
+    }
+    roundRecordsRef.current.push({
+      roundIndex: index,
+      correctAnswer: round.route.code,
+      score: points,
+      hintUsed,
+    })
     setLastOk(ok)
-    if (ok) {
-      const next = scoreRef.current + 1000
+    if (points > 0) {
+      const next = scoreRef.current + points
       scoreRef.current = next
       setScore(next)
       sound.correct()
@@ -100,15 +120,32 @@ export function GuessRouteGame({ data, rounds, onExit, onFinished }: Props) {
     setPhase('reveal')
   }
 
+  const useHint = () => {
+    if (phase !== 'play' || hintUsed) return
+    const wrongOptions = options.filter((code) => code !== round.route.code)
+    if (wrongOptions.length === 0) return
+    const toRemove = wrongOptions[Math.floor(Math.random() * wrongOptions.length)]!
+    if (choice === toRemove) setChoice('')
+    setEliminated((prev) => new Set(prev).add(toRemove))
+    setHintUsed(true)
+    sound.click()
+  }
+
   const finishOrNext = () => {
     if (index + 1 >= rounds.length) {
       setPhase('done')
       sound.win()
-      onFinished(scoreRef.current)
+      onFinished({
+        score: scoreRef.current,
+        hintCount: roundRecordsRef.current.filter((r) => r.hintUsed).length,
+        rounds: roundRecordsRef.current,
+      })
       return
     }
     setIndex((i) => i + 1)
     setChoice('')
+    setEliminated(new Set())
+    setHintUsed(false)
     setPhase('play')
     sound.click()
   }
@@ -190,7 +227,7 @@ export function GuessRouteGame({ data, rounds, onExit, onFinished }: Props) {
                 <SelectValue placeholder="Pilih kode rute…" />
               </SelectTrigger>
               <SelectContent className="max-h-72">
-                {options.map((code) => (
+                {availableOptions.map((code) => (
                   <SelectItem key={code} value={code}>
                     {code}
                     {routeByCode.get(code) ? ` — ${routeByCode.get(code)}` : ''}
@@ -202,20 +239,31 @@ export function GuessRouteGame({ data, rounds, onExit, onFinished }: Props) {
         )}
       </div>
 
-      <div className="border-t border-border/60 p-4">
+      <div className="border-t border-border/60 p-4 space-y-2">
         {phase === 'reveal' ? (
           <Button className="h-11 w-full" onClick={finishOrNext} withArrow>
             {index + 1 >= rounds.length ? 'Lihat skor' : 'Next'}
           </Button>
         ) : (
-          <Button
-            className="h-11 w-full font-bold"
-            disabled={!choice}
-            onClick={submit}
-            withArrow
-          >
-            Guess
-          </Button>
+          <>
+            <Button
+              className="h-11 w-full font-bold"
+              disabled={!choice}
+              onClick={submit}
+              withArrow
+            >
+              Guess
+            </Button>
+            <Button
+              variant="outline"
+              className="h-10 w-full gap-2"
+              disabled={hintUsed || availableOptions.length <= 2}
+              onClick={useHint}
+            >
+              <Lightbulb className="size-4" />
+              {hintUsed ? 'Hint sudah dipakai' : 'Hint (-75% poin)'}
+            </Button>
+          </>
         )}
       </div>
     </div>

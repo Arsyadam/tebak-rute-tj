@@ -14,6 +14,14 @@ export default defineConfig({
     // MapLibre v6 ships its own worker ESM; Vite's dep optimizer breaks the worker path.
     exclude: ['maplibre-gl'],
   },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+    },
+  },
   build: {
     target: 'es2022',
   },

@@ -1,5 +1,6 @@
 import Peer, { type DataConnection } from 'peerjs'
 import type { UserProfile } from '@/types'
+import { api } from '@/api/client'
 
 export type RoomPlayer = {
   id: string
@@ -17,7 +18,7 @@ export type RoomMessage =
   | { type: 'chat'; name: string; text: string }
 
 function roomPeerId(code: string) {
-  return `tebakjalurtj-${code.toLowerCase()}`
+  return `transitguestr-${code.toLowerCase()}`
 }
 
 export function makeRoomCode() {
@@ -52,8 +53,16 @@ export class GameRoom {
     this.players.set(self.id, self)
   }
 
-  static async host(user: UserProfile): Promise<GameRoom> {
-    const code = makeRoomCode()
+  static async host(
+    user: UserProfile,
+    mode: string,
+    difficulty: string,
+  ): Promise<GameRoom> {
+    const res = (await api('/rooms', {
+      method: 'POST',
+      body: JSON.stringify({ mode, difficulty }),
+    })) as { code: string }
+    const code = res.code
     const peer = await openPeer(roomPeerId(code))
     const self: RoomPlayer = {
       id: user.id,
@@ -65,11 +74,12 @@ export class GameRoom {
     peer.on('connection', (conn) => {
       room.wireConn(conn)
     })
-    room.onStatus(`Room ${code} siap. Bagikan kode ke teman.`)
+    room.onStatus(`Room ${code} siap. Bagikan link ke teman.`)
     return room
   }
 
   static async join(user: UserProfile, code: string): Promise<GameRoom> {
+    await api(`/rooms/${code.toUpperCase()}`)
     const peer = await openPeer()
     const self: RoomPlayer = {
       id: user.id,

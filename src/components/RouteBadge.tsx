@@ -4,7 +4,17 @@ import {
   type CustomLine,
 } from '@/components/8starlabs-ui/transport-badge'
 
-/** Route chip for TJ (GTFS color) or KRL color lines */
+function agencyBadgeCode(agency?: string, code?: string): string | undefined {
+  if (agency === 'krl' || /^(red|blue|green|brown|pink)/i.test(code || '')) {
+    return krlBadgeCode(code || '')
+  }
+  if (agency === 'mrt') return 'MRT'
+  if (agency === 'lrt-jabodebek') return 'LRTJ'
+  if (agency === 'lrt-jabodetabek') return 'LRTT'
+  return undefined
+}
+
+/** Route chip for TJ, KRL, MRT, LRT Jabodebek, or LRT Jabodetabek */
 export function RouteBadge({
   code,
   name,
@@ -22,11 +32,12 @@ export function RouteBadge({
   showName?: boolean
   className?: string
 }) {
-  if (agency === 'krl' || /^(red|blue|green|brown|pink)/i.test(code)) {
+  const systemCode = agencyBadgeCode(agency, code)
+  if (systemCode) {
     return (
       <TransportBadge
         system="JK"
-        stationCode={krlBadgeCode(code)}
+        stationCode={systemCode}
         stationName={showName ? name || code : undefined}
         showStationName={showName}
         size={size}

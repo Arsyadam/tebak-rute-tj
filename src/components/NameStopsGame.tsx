@@ -19,11 +19,12 @@ import PartitionBar, {
 } from '@/components/8starlabs-ui/partition-bar'
 import Shake from '@/components/8starlabs-ui/shake'
 import StatusIndicator from '@/components/8starlabs-ui/status-indicator'
-import { matchStopName, racePoints, type RouteRound } from '@/lib/game'
+import { matchStopName, racePoints, type RouteRound, HINT_PENALTY } from '@/lib/game'
 import { sound } from '@/lib/sound'
 import type { GameRoom, RoomPlayer } from '@/lib/multiplayer'
 import { cn } from '@/lib/utils'
-import { Check, X } from 'lucide-react'
+import { Check, X, Lightbulb } from 'lucide-react'
+import type { GameResult } from '@/types'
 
 interface Props {
   rounds: RouteRound[]
@@ -31,7 +32,7 @@ interface Props {
   selfId: string
   room: GameRoom | null
   onExit: () => void
-  onFinished: (score: number) => void
+  onFinished: (result: GameResult) => void
 }
 
 type HitToast = {
@@ -59,9 +60,12 @@ export function NameStopsGame({
   const [toast, setToast] = useState<HitToast | null>(null)
   const [focusStopId, setFocusStopId] = useState<string | null>(null)
   const [flyNonce, setFlyNonce] = useState(0)
+  const [hintUsed, setHintUsed] = useState(false)
   const startedAt = useRef(Date.now())
   const claimedRef = useRef(new Set<string>())
   const inputRef = useRef<HTMLInputElement>(null)
+  const roundScoresRef = useRef<Record<number, { score: number; hintUsed: boolean }>>({})
+  const roundRecordsRef = useRef<{ roundIndex: number; correctAnswer: string; score: number; hintUsed: boolean }[]>([])
 
   const round = rounds[roundIndex]
   const routeColor = round?.route.color || '#0b5ea8'
@@ -74,7 +78,11 @@ export function NameStopsGame({
     setInput('')
     setToast(null)
     setFocusStopId(null)
+    setHintUsed(false)
     inputRef.current?.focus()
+    if (!roundScoresRef.current[roundIndex]) {
+      roundScoresRef.current[roundIndex] = { score: 0, hintUsed: false }
+    }
   }, [roundIndex])
 
   const celebrate = (hit: HitToast) => {
@@ -95,6 +103,7 @@ export function NameStopsGame({
       celebrate({ stopId, name: stopName, points, by: name })
       if (playerId === selfId) {
         setLocalScore((s) => s + points)
+        roundScoresRef.current[roundIndex].score += points
         sound.correct()
       } else {
         sound.tick()
@@ -141,31 +150,60 @@ export function NameStopsGame({
     }
 
     const points = racePoints(Date.now() - startedAt.current)
+    const applied = hintUsed ? Math.floor(points * HINT_PENALTY) : points
     setInput('')
     setFlash('ok')
     window.setTimeout(() => setFlash(null), 450)
 
     if (room) {
-      room.sendGuessStop(hit.id, points)
+      room.sendGuessStop(hit.id, applied)
     } else {
       claimedRef.current.add(hit.id)
       setGuessed(new Set(claimedRef.current))
-      setLocalScore((s) => s + points)
+      setLocalScore((s) => s + applied)
+      roundScoresRef.current[roundIndex].score += applied
       sound.correct()
-      celebrate({ stopId: hit.id, name: hit.name, points, by: 'Kamu' })
+      celebrate({ stopId: hit.id, name: hit.name, points: applied, by: 'Kamu' })
     }
   }
 
   const allDone = guessed.size >= round.stops.length
 
   const nextRound = () => {
+    const summary = roundScoresRef.current[roundIndex] || { score: 0, hintUsed: false }
+    roundRecordsRef.current.push({
+      roundIndex,
+      correctAnswer: round.route.code,
+      score: summary.score,
+      hintUsed: summary.hintUsed,
+    })
+
     if (roundIndex + 1 >= rounds.length) {
       setDone(true)
       sound.win()
-      onFinished(room ? room.self.score : localScore)
+      onFinished({
+        score: room ? room.self.score : localScore,
+        hintCount: roundRecordsRef.current.filter((r) => r.hintUsed).length,
+        rounds: roundRecordsRef.current,
+      })
       return
     }
     setRoundIndex((i) => i + 1)
+    sound.click()
+  }
+
+  const useHint = () => {
+    if (room || hintUsed || allDone) return
+    const remainingStops = round.stops.filter((s) => !guessed.has(s.id))
+    if (remainingStops.length === 0) return
+    const stop = remainingStops[Math.floor(Math.random() * remainingStops.length)]
+    if (!stop) return
+    claimedRef.current.add(stop.id)
+    setGuessed(new Set(claimedRef.current))
+    setFocusStopId(stop.id)
+    setFlyNonce((n) => n + 1)
+    setHintUsed(true)
+    roundScoresRef.current[roundIndex].hintUsed = true
     sound.click()
   }
 
@@ -297,23 +335,34 @@ export function NameStopsGame({
             </Button>
           </div>
         ) : (
-          <Shake signal={shakeSignal}>
-            <form onSubmit={submit} className="flex gap-2">
-              <Input
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Ketik nama halte…"
-                className="h-11 bg-background text-base"
-                autoComplete="off"
-                autoFocus
-                aria-invalid={flash === 'bad' || undefined}
-              />
-              <Button type="submit" className="h-11 px-5 font-bold" withArrow>
-                Tebak
-              </Button>
-            </form>
-          </Shake>
+          <div className="space-y-2">
+            <Shake signal={shakeSignal}>
+              <form onSubmit={submit} className="flex gap-2">
+                <Input
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Ketik nama halte…"
+                  className="h-11 bg-background text-base"
+                  autoComplete="off"
+                  autoFocus
+                  aria-invalid={flash === 'bad' || undefined}
+                />
+                <Button type="submit" className="h-11 px-5 font-bold" withArrow>
+                  Tebak
+                </Button>
+              </form>
+            </Shake>
+            <Button
+              variant="outline"
+              className="h-10 w-full gap-2"
+              disabled={hintUsed || room !== null}
+              onClick={useHint}
+            >
+              <Lightbulb className="size-4" />
+              {hintUsed ? 'Hint sudah dipakai' : room ? 'Hint hanya solo' : 'Hint (-75% poin)'}
+            </Button>
+          </div>
         )}
       </div>
     </div>

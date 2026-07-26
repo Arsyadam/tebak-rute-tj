@@ -1,6 +1,8 @@
 import type { Difficulty, GameData, GameMode, Pattern, Route, Stop } from '@/types'
 import { loadRecentRoutes, rememberRoutes } from '@/lib/recent'
 
+export const HINT_PENALTY = 0.25
+
 export interface RouteRound {
   id: string
   route: Route

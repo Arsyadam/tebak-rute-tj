@@ -27,13 +27,16 @@ const SYSTEMS = {
     ER: { name: 'East Rail Line', short: 'ER', long: 'ERL', bg: '#78b2e5', fg: '#000' },
     TM: { name: 'Tuen Ma Line', short: 'TM', long: 'TML', bg: '#913a0e', fg: '#FFF' },
   },
-  /** Jakarta — KRL color lines + Transjakarta */
+  /** Jakarta — KRL color lines + MRT + LRT + Transjakarta */
   JK: {
     RED: { name: 'Red Line', short: 'Red', long: 'RED', bg: '#DA251D', fg: '#FFF' },
     BLU: { name: 'Blue Line', short: 'Blue', long: 'BLU', bg: '#1A4C8B', fg: '#FFF' },
     GRN: { name: 'Green Line', short: 'Green', long: 'GRN', bg: '#008C45', fg: '#FFF' },
     BRN: { name: 'Brown Line', short: 'Brown', long: 'BRN', bg: '#8B5A2B', fg: '#FFF' },
     PNK: { name: 'Pink Line', short: 'Pink', long: 'PNK', bg: '#E91E8C', fg: '#FFF' },
+    MRT: { name: 'MRT', short: 'MRT', long: 'MRT', bg: '#CA1F47', fg: '#FFF' },
+    LRTJ: { name: 'LRT Jabodebek', short: 'LRT', long: 'LRTJ', bg: '#E3000F', fg: '#FFF' },
+    LRTT: { name: 'LRT Jabodetabek', short: 'LRT', long: 'LRTT', bg: '#F16227', fg: '#FFF' },
     TJ: { name: 'Transjakarta', short: 'TJ', long: 'TJ', bg: '#0B5EA8', fg: '#FFF' },
   },
 } as const

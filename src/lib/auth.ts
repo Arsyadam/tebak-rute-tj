@@ -1,63 +1,50 @@
-import type { LeaderboardEntry, UserProfile } from '@/types'
+import { api } from '@/api/client'
+import type { GameRoundRecord, LeaderboardEntry, UserProfile } from '@/types'
 
-const USER_KEY = 'tj-user'
-const LB_KEY = 'tj-leaderboard'
-
-const COLORS = ['#3b82f6', '#2563eb', '#0ea5e9', '#06b6d4', '#6366f1', '#8b5cf6']
-
-function uid() {
-  return crypto.randomUUID()
+export async function me(): Promise<{ user: UserProfile }> {
+  return api('/auth/me')
 }
 
-export function loadUser(): UserProfile | null {
-  try {
-    const raw = localStorage.getItem(USER_KEY)
-    return raw ? (JSON.parse(raw) as UserProfile) : null
-  } catch {
-    return null
-  }
-}
-
-export function saveUser(user: UserProfile) {
-  localStorage.setItem(USER_KEY, JSON.stringify(user))
-}
-
-export function signInGuest(name: string): UserProfile {
-  const existing = loadUser()
-  const trimmed = name.trim().slice(0, 24) || 'Pemain'
-  const user: UserProfile = existing
-    ? { ...existing, name: trimmed }
-    : {
-        id: uid(),
-        name: trimmed,
-        color: COLORS[Math.floor(Math.random() * COLORS.length)]!,
-        createdAt: new Date().toISOString(),
-      }
-  saveUser(user)
-  return user
-}
-
-export function signOut() {
-  localStorage.removeItem(USER_KEY)
-}
-
-export function loadLeaderboard(): LeaderboardEntry[] {
-  try {
-    const raw = localStorage.getItem(LB_KEY)
-    const list = raw ? (JSON.parse(raw) as LeaderboardEntry[]) : []
-    return list.sort((a, b) => b.score - a.score).slice(0, 50)
-  } catch {
-    return []
-  }
-}
-
-export function pushScore(entry: Omit<LeaderboardEntry, 'id' | 'at'>) {
-  const list = loadLeaderboard()
-  list.push({
-    ...entry,
-    id: uid(),
-    at: new Date().toISOString(),
+export async function registerEmail(email: string, password: string, name: string): Promise<{ user: UserProfile }> {
+  return api('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ email, password, name }),
   })
-  list.sort((a, b) => b.score - a.score)
-  localStorage.setItem(LB_KEY, JSON.stringify(list.slice(0, 50)))
+}
+
+export async function signInEmail(email: string, password: string): Promise<{ user: UserProfile }> {
+  return api('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  })
+}
+
+export async function signInGuest(name: string): Promise<{ user: UserProfile }> {
+  return api('/auth/guest', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  })
+}
+
+export async function signOut(): Promise<{ ok: boolean }> {
+  return api('/auth/logout', { method: 'POST' })
+}
+
+export async function loadLeaderboard(mode?: string): Promise<LeaderboardEntry[]> {
+  const qs = mode ? `?mode=${encodeURIComponent(mode)}` : ''
+  return api(`/leaderboard${qs}`)
+}
+
+export async function pushScore(payload: {
+  mode: string
+  difficulty: string
+  score: number
+  playStyle: string
+  hintCount: number
+  rounds: GameRoundRecord[]
+}): Promise<{ id: string }> {
+  return api('/games', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
 }

@@ -1,8 +1,8 @@
-# PRD — Tebak Jalur TJ
+# PRD — TransitGuessr
 
 ## 1. Summary
 
-**Tebak Jalur TJ** adalah game kuis berbasis pengetahuan rute Transjakarta. Pemain melatih dan menguji ingatan tentang kode rute, nama halte, dan jalur di peta lewat empat mode permainan. Target MVP: web app mobile-first yang bisa dimainkan dalam sesi singkat (2–5 menit per round).
+**TransitGuessr** adalah game kuis berbasis pengetahuan rute transportasi umum Jakarta. Pemain melatih dan menguji ingatan tentang kode rute, nama halte, dan jalur di peta lewat beberapa mode permainan. Target MVP: web app mobile-first yang bisa dimainkan dalam sesi singkat (2–5 menit per round).
 
 ## 2. Contacts
 
@@ -173,7 +173,7 @@ Tampil prompt → Pemain jawab → Reveal benar/salah
 |------|-------------|---------|
 | Client | Web (React/Next atau Vite) | PWA optional belakangan |
 | Map | MapLibre / Leaflet + GeoJSON polyline | Ringan untuk mobile |
-| Data | GTFS resmi Transjakarta saja (`gtfs.transjakarta.co.id`) | Di-build ke `public/data/game-data.json` via `npm run build:data` |
+| Data | GTFS Transjakarta, KRL, MRT, LRT Jabodebek / Jabodetabek | Di-build ke `public/data/game-data.json` via `npm run build:data` |
 | Soal engine | Generator server-side atau precompute JSON | Precompute lebih mudah untuk MVP |
 | Analytics | Plausible / PostHog / GA4 | Event: `mode_start`, `answer`, `round_complete` |
 

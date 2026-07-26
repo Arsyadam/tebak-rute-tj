@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String        @id @default(uuid())
+  email         String?       @unique
+  name          String
+  passwordHash  String?
+  googleId      String?       @unique
+  color         String
+  isGuest       Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  sessions      GameSession[]
+  roomsHosted   Room[]
+}
+
+model GameSession {
+  id          String      @id @default(uuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id])
+  mode        String
+  difficulty  String
+  score       Int
+  playStyle   String
+  hintCount   Int         @default(0)
+  startedAt   DateTime    @default(now())
+  finishedAt  DateTime?
+  rounds      GameRound[]
+}
+
+model GameRound {
+  id            String      @id @default(uuid())
+  sessionId     String
+  session       GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  roundIndex    Int
+  correctAnswer String
+  score         Int
+  hintUsed      Boolean     @default(false)
+
+  @@index([sessionId])
+}
+
+model Room {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  hostId      String
+  host        User     @relation(fields: [hostId], references: [id])
+  mode        String
+  difficulty  String
+  status      String   @default("open")
+  createdAt   DateTime @default(now())
+}

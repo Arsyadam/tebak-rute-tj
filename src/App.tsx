@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { UserProfile } from '@/types'
+import { useAuth } from '@/contexts/AuthContext'
 import { useGameData } from '@/hooks/useGameData'
 import { pickRouteRounds } from '@/lib/game'
 import { pickJourneys } from '@/lib/journey'
-import { loadUser, pushScore } from '@/lib/auth'
+import { pushScore } from '@/lib/auth'
 import { sound } from '@/lib/sound'
 import { Landing, type StartPayload } from '@/components/Landing'
 import { NameStopsGame } from '@/components/NameStopsGame'
@@ -11,11 +11,12 @@ import { GuessRouteGame } from '@/components/GuessRouteGame'
 import { PlanTripGame } from '@/components/PlanTripGame'
 import { Button } from '@/components/ui/button'
 import type { RoomPlayer } from '@/lib/multiplayer'
+import type { GameResult } from '@/types'
 
 function App() {
   const { data, error, loading } = useGameData()
+  const { user } = useAuth()
   const [session, setSession] = useState<StartPayload | null>(null)
-  const [user] = useState<UserProfile | null>(() => loadUser())
   const [players, setPlayers] = useState<RoomPlayer[]>([])
 
   const rounds = useMemo(() => {
@@ -31,25 +32,28 @@ function App() {
 
   useEffect(() => {
     if (!session?.room) {
-      const u = loadUser()
-      setPlayers(u ? [{ id: u.id, name: u.name, color: u.color, score: 0 }] : [])
+      setPlayers(user ? [{ id: user.id, name: user.name, color: user.color, score: 0 }] : [])
       return
     }
     const room = session.room
     setPlayers([...room.players.values()])
     room.onRoster = setPlayers
-  }, [session])
+  }, [session, user])
 
-  const finish = (score: number) => {
-    const u = loadUser()
-    if (u && session) {
-      pushScore({
-        name: u.name,
-        color: u.color,
-        score,
-        mode: session.mode,
-        playStyle: session.playStyle,
-      })
+  const finish = async ({ score, rounds, hintCount }: GameResult) => {
+    if (user && session) {
+      try {
+        await pushScore({
+          mode: session.mode,
+          difficulty: session.difficulty,
+          score,
+          playStyle: session.playStyle,
+          hintCount,
+          rounds,
+        })
+      } catch (err) {
+        console.error('Failed to save score', err)
+      }
     }
     sound.win()
   }
@@ -64,7 +68,7 @@ function App() {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center bg-[#e9ecef] text-[#667085]">
-        Memuat GTFS…
+        Memuat peta rute…
       </div>
     )
   }
@@ -79,7 +83,7 @@ function App() {
   }
 
   if (session) {
-    const selfId = loadUser()?.id ?? user?.id ?? 'local'
+    const selfId = user?.id ?? 'local'
 
     if (session.mode === 'plan-trip') {
       if (journeys.length === 0) {
@@ -96,7 +100,7 @@ function App() {
           data={data}
           journeys={journeys}
           onExit={exit}
-          onFinished={(score) => finish(score)}
+          onFinished={finish}
         />
       )
     }
@@ -110,7 +114,7 @@ function App() {
           selfId={selfId}
           room={session.room}
           onExit={exit}
-          onFinished={(score) => finish(score)}
+          onFinished={finish}
         />
       )
     }
@@ -122,7 +126,7 @@ function App() {
           data={data}
           rounds={rounds}
           onExit={exit}
-          onFinished={(score) => finish(score)}
+          onFinished={finish}
         />
       )
     }
