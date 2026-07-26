@@ -92,11 +92,13 @@ Lobby + start race mostly works. **Live score sync is broken in one direction an
 
 ## Acceptance criteria
 
-- [ ] Joiner correct stop → host race score for joiner increases within ~1s
-- [ ] Host correct stop → joiner shows the **same** host score (not 2×)
-- [ ] Opening share link → login → lands in room without extra Join click
-- [ ] Only host sees Copy share link
-- [ ] Production Playwright host/joiner suite green on `transitguessr.arsyadam.id`
+- [x] Joiner correct stop → host race score for joiner increases within ~1s
+- [x] Host correct stop → joiner shows the **same** host score (not 2×)
+- [x] Opening share link → login → lands in room without extra Join click
+- [x] Only host sees Copy share link
+- [x] Production Playwright host/joiner suite green on `transitguessr.arsyadam.id`
+
+**Shipped:** commit `3af92e0` — verified live 2026-07-26 (joiner→host 926=926, host→joiner 846=846, auto-join OK).
 
 ## Suggested order of code changes
 
