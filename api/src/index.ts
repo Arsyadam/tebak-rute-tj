@@ -17,7 +17,49 @@ const PORT = Number(process.env.PORT || 3001)
 
 const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:5173'
 
-app.use(helmet())
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        "default-src": ["'self'"],
+        "script-src": [
+          "'self'",
+          "https://pagead2.googlesyndication.com",
+          "https://www.googletagservices.com",
+          "https://www.google.com",
+        ],
+        "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        "font-src": ["'self'", "https://fonts.gstatic.com", "data:"],
+        "img-src": ["'self'", "data:", "blob:", "https:"],
+        "connect-src": [
+          "'self'",
+          "https://0.peerjs.com",
+          "wss://0.peerjs.com",
+          "https://*.peerjs.com",
+          "wss://*.peerjs.com",
+          "https://basemaps.cartocdn.com",
+          "https://*.basemaps.cartocdn.com",
+          "https://*.tile.openstreetmap.org",
+          "https:",
+          "wss:",
+        ],
+        "worker-src": ["'self'", "blob:"],
+        "child-src": ["'self'", "blob:"],
+        "frame-src": [
+          "'self'",
+          "https://googleads.g.doubleclick.net",
+          "https://tpc.googlesyndication.com",
+          "https://www.google.com",
+        ],
+        // Behind Cloudflare Flexible SSL; avoid forcing HTTPS upgrades that can loop.
+        "upgrade-insecure-requests": null,
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  }),
+)
 app.use(cors({ origin: allowedOrigin, credentials: true }))
 app.use(express.json())
 app.use(cookieParser())
