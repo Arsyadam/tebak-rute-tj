@@ -33,11 +33,11 @@ The backend is a Node/Express + Prisma + PostgreSQL API in `api/`.
 
 ### Local development
 
-1. Start Postgres:
+1. Copy `.env.example` to `.env` and fill in `DATABASE_URL` and JWT/Google secrets.
+2. Start Postgres:
    ```bash
    docker-compose up -d db
    ```
-2. Copy `.env.example` to `.env` and fill in `DATABASE_URL`.
 3. Generate Prisma client and run migrations:
    ```bash
    npm run db:generate
@@ -51,9 +51,11 @@ The backend is a Node/Express + Prisma + PostgreSQL API in `api/`.
 
 ### Production / Docker
 
-```bash
-docker-compose up --build
-```
+1. Copy `.env.example` to `.env` and fill in production values.
+2. Run:
+   ```bash
+   docker-compose up --build
+   ```
 
 This builds a single container that serves the static frontend and the API on port 3000.
 
