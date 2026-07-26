@@ -30,8 +30,6 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       FRONTEND_URL: ${FRONTEND_URL}
       PORT: 3000
-    ports:
-      - "3000:3000"
     depends_on:
       db:
         condition: service_healthy
