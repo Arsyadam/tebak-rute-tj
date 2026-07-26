@@ -1,6 +1,7 @@
-export type Difficulty = 'easy' | 'medium' | 'hard'
+export type Difficulty = 'easy' | 'medium' | 'hard' | 'krl'
 
-export type GameMode = 'name-stops' | 'guess-route'
+export type GameMode = 'name-stops' | 'guess-route' | 'plan-trip'
+
 
 export type PlayStyle = 'solo' | 'friends'
 
@@ -28,6 +29,7 @@ export interface Route {
   code: string
   name: string
   desc: string
+  agency?: 'tj' | 'krl' | string
   color: string
   textColor: string
   difficulty: Difficulty

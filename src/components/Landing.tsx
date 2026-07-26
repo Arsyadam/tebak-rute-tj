@@ -8,6 +8,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Label } from '@/components/ui/label'
+import { Separator } from '@/components/ui/separator'
+import StatusIndicator from '@/components/8starlabs-ui/status-indicator'
+import { TransportBadge } from '@/components/8starlabs-ui/transport-badge'
+import { RouteBadge } from '@/components/RouteBadge'
 import type { Difficulty, GameData, GameMode, PlayStyle, UserProfile } from '@/types'
 import { JAKARTA_CENTER, MODE_META } from '@/lib/game'
 import { loadLeaderboard, loadUser, signInGuest, signOut } from '@/lib/auth'
@@ -139,10 +143,10 @@ export function Landing({ data, onStart }: Props) {
     onStart({
       mode,
       difficulty,
-      count: mode === 'name-stops' ? 2 : 5,
+      count: mode === 'name-stops' ? 3 : mode === 'plan-trip' ? 5 : 5,
       playStyle: 'solo',
       room: null,
-      seed: Date.now(),
+      seed: Date.now() ^ (Math.random() * 0xffffffff) >>> 0,
     })
   }
 
@@ -165,16 +169,21 @@ export function Landing({ data, onStart }: Props) {
 
       <div className="relative z-10 mx-auto grid h-full w-full max-w-6xl gap-4 overflow-auto px-4 py-6 sm:px-6 lg:grid-cols-[1.4fr_0.9fr]">
         <section className="flex flex-col">
-          <p className="font-display text-4xl font-extrabold tracking-tight text-[var(--tj)] sm:text-5xl">
+          <p className="font-display text-4xl font-extrabold tracking-tight text-primary sm:text-5xl">
             Tebak Jalur TJ
           </p>
           <h1 className="mt-2 max-w-xl font-display text-2xl leading-tight font-bold sm:text-3xl">
             Drop in. Guess the line. Race your friends.
           </h1>
-          <p className="mt-3 max-w-lg text-sm text-[#667085] sm:text-base">
-            Data GTFS resmi Transjakarta. Warna jalur sesuai koridor aslinya.
+          <p className="mt-3 max-w-lg text-sm text-muted-foreground sm:text-base">
+            Data GTFS resmi Transjakarta + koridor KRL Jabodetabek. Warna jalur sesuai aslinya.
           </p>
-          <p className="mt-2 text-xs text-[#98a2b3]">
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <RouteBadge code="1" color="#D01C2A" agency="tj" size="sm" />
+            <RouteBadge code="9" color="#E87722" agency="tj" size="sm" />
+            <TransportBadge system="JK" stationCode={['RED', 'BLU', 'GRN', 'BRN', 'PNK']} size="sm" />
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
             {data.meta.routeCount} rute · {data.meta.stopCount} halte
           </p>
 
@@ -193,7 +202,7 @@ export function Landing({ data, onStart }: Props) {
                   placeholder="Nama kamu"
                   onKeyDown={(e) => e.key === 'Enter' && login()}
                 />
-                <Button className="bg-[var(--tj)] hover:bg-[#094a86]" onClick={login}>
+                <Button className="bg-primary" onClick={login} withArrow>
                   Lanjut
                 </Button>
               </CardContent>
@@ -235,8 +244,9 @@ export function Landing({ data, onStart }: Props) {
               <Button
                 size="lg"
                 disabled={!canPlay}
-                className="h-12 w-full bg-[var(--tj)] text-base font-bold hover:bg-[#094a86]"
+                className="h-12 w-full text-base font-bold"
                 onClick={startSolo}
+                withArrow
               >
                 Start solo
               </Button>
@@ -248,8 +258,8 @@ export function Landing({ data, onStart }: Props) {
               <div className="grid gap-2 sm:grid-cols-2">
                 <Button
                   disabled={!canPlay || busy}
-                  className="bg-[var(--tj)] hover:bg-[#094a86]"
                   onClick={createRoom}
+                  withArrow
                 >
                   Buat room
                 </Button>
@@ -266,7 +276,14 @@ export function Landing({ data, onStart }: Props) {
                   </Button>
                 </div>
               </div>
-              {status ? <p className="text-sm text-[#667085]">{status}</p> : null}
+              {status ? (
+                <StatusIndicator
+                  state={busy ? 'fixing' : room ? 'active' : 'idle'}
+                  label={status}
+                  size="sm"
+                />
+              ) : null}
+              <Separator className="my-1" />
               {players.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {players.map((p) => (
@@ -280,8 +297,9 @@ export function Landing({ data, onStart }: Props) {
               <Button
                 size="lg"
                 disabled={!canPlay || !room || !room.isHost}
-                className="h-12 w-full bg-[var(--tj)] text-base font-bold hover:bg-[#094a86]"
+                className="h-12 w-full text-base font-bold"
                 onClick={startFriends}
+                withArrow
               >
                 {room?.isHost ? 'Start race' : 'Menunggu host…'}
               </Button>
@@ -340,7 +358,7 @@ function ModePicker({
   disabled?: boolean
 }) {
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
+    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
       {(Object.keys(MODE_META) as GameMode[]).map((m) => {
         const meta = MODE_META[m]
         const active = mode === m
@@ -356,14 +374,14 @@ function ModePicker({
             className={cn(
               'rounded-2xl border bg-white/90 p-4 text-left shadow-sm transition',
               active
-                ? 'border-[var(--tj)] ring-1 ring-[var(--tj)]/30'
+                ? 'border-primary ring-1 ring-primary/30'
                 : 'border-black/8 hover:border-black/20',
               disabled && 'opacity-50',
             )}
           >
             <p className="font-display text-lg font-bold">{meta.title}</p>
-            <p className="mt-1 text-sm text-[#667085]">{meta.blurb}</p>
-            <p className="mt-2 text-xs text-[#98a2b3]">{meta.tip}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{meta.blurb}</p>
+            <p className="mt-2 text-xs text-muted-foreground/80">{meta.tip}</p>
           </button>
         )
       })}
@@ -380,13 +398,14 @@ function DifficultyPicker({
 }) {
   return (
     <div>
-      <Label className="text-[#667085]">Kesulitan</Label>
+      <Label className="text-muted-foreground">Kesulitan</Label>
       <div className="mt-1.5 flex flex-wrap gap-2">
         {(
           [
             ['easy', 'BRT'],
             ['medium', 'Integrasi'],
             ['hard', 'Mikrotrans'],
+            ['krl', 'KRL'],
             ['all', 'Semua'],
           ] as const
         ).map(([value, label]) => (
@@ -394,11 +413,9 @@ function DifficultyPicker({
             key={value}
             size="sm"
             variant={difficulty === value ? 'default' : 'secondary'}
-            className={cn(
-              'rounded-full',
-              difficulty === value && 'bg-[var(--tj)] hover:bg-[#094a86]',
-            )}
+            className="rounded-full"
             onClick={() => setDifficulty(value)}
+            disableHoverPop
           >
             {label}
           </Button>

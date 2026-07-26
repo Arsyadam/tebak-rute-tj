@@ -1,6 +1,7 @@
 /**
- * Build compact quiz dataset from Transjakarta GTFS.
- * Source of truth: data/gtfs (official https://gtfs.transjakarta.co.id/files/file_gtfs.zip)
+ * Build compact quiz dataset from Transjakarta GTFS (+ optional KRL GTFS).
+ * TJ: data/gtfs (official https://gtfs.transjakarta.co.id/files/file_gtfs.zip)
+ * KRL: data/gtfs-krl (generated via npm run build:krl — OSM + corridor order)
  *
  * Uses route_list.txt for canonical trip per route+direction.
  */
@@ -12,11 +13,25 @@ import { createInterface } from 'node:readline'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(__dirname, '..')
-const gtfsDir = path.join(root, 'data', 'gtfs')
 const outDir = path.join(root, 'public', 'data')
 const outFile = path.join(outDir, 'game-data.json')
 
 const MAX_SHAPE_POINTS = 80
+
+const FEEDS = [
+  {
+    id: 'tj',
+    dir: path.join(root, 'data', 'gtfs'),
+    source: 'https://gtfs.transjakarta.co.id/files/file_gtfs.zip',
+    required: true,
+  },
+  {
+    id: 'krl',
+    dir: path.join(root, 'data', 'gtfs-krl'),
+    source: 'generated:KRL Jabodetabek (OSM + corridor order)',
+    required: false,
+  },
+]
 
 function parseCsvLine(line) {
   const out = []
@@ -47,6 +62,7 @@ function parseCsvLine(line) {
 }
 
 async function readCsv(filePath) {
+  if (!fs.existsSync(filePath)) return []
   const rl = createInterface({
     input: createReadStream(filePath, { encoding: 'utf8' }),
     crlfDelay: Infinity,
@@ -70,13 +86,13 @@ async function readCsv(filePath) {
   return rows
 }
 
-function difficultyFromDesc(desc) {
+function difficultyFromDesc(desc, feedId) {
+  if (feedId === 'krl' || desc === 'KRL') return 'krl'
   if (desc === 'BRT') return 'easy'
   if (desc === 'Angkutan Umum Integrasi' || desc === 'Transjabodetabek') return 'medium'
   return 'hard'
 }
 
-/** Ramer–Douglas–Peucker simplification in lat/lon degrees */
 function simplifyRdp(points, epsilon) {
   if (points.length <= 2) return points
 
@@ -125,7 +141,6 @@ function simplifyRdp(points, epsilon) {
 
 function downsampleShape(points) {
   if (points.length <= MAX_SHAPE_POINTS) return points
-  // ~50–80m tolerance in degrees (~0.0005 ≈ 55m near equator)
   let epsilon = 0.0004
   let simplified = simplifyRdp(points, epsilon)
   while (simplified.length > MAX_SHAPE_POINTS && epsilon < 0.01) {
@@ -143,8 +158,15 @@ function downsampleShape(points) {
   return simplified
 }
 
-async function main() {
-  console.log('Reading GTFS…')
+async function loadFeed(feed) {
+  const gtfsDir = feed.dir
+  if (!fs.existsSync(path.join(gtfsDir, 'routes.txt'))) {
+    if (feed.required) throw new Error(`Missing required GTFS at ${gtfsDir}`)
+    console.log(`Skipping optional feed ${feed.id} (not found)`)
+    return null
+  }
+
+  console.log(`Reading GTFS [${feed.id}]…`)
   const [routes, trips, stops, routeList] = await Promise.all([
     readCsv(path.join(gtfsDir, 'routes.txt')),
     readCsv(path.join(gtfsDir, 'trips.txt')),
@@ -152,14 +174,19 @@ async function main() {
     readCsv(path.join(gtfsDir, 'route_list.txt')),
   ])
 
+  if (!routeList.length) {
+    console.warn(`Feed ${feed.id}: no route_list.txt — skipping`)
+    return null
+  }
+
   const tripById = new Map(trips.map((t) => [t.trip_id, t]))
   const routeById = new Map(routes.map((r) => [r.route_id, r]))
 
-  // Only boarding stops (location_type 0) for quiz names; keep stations too for coords
   const stopById = new Map()
   for (const s of stops) {
-    stopById.set(s.stop_id, {
-      id: s.stop_id,
+    const id = feed.id === 'tj' ? s.stop_id : s.stop_id
+    stopById.set(id, {
+      id,
       name: s.stop_name.trim(),
       lat: Number(s.stop_lat),
       lon: Number(s.stop_lon),
@@ -169,9 +196,8 @@ async function main() {
   }
 
   const canonicalTripIds = new Set(routeList.map((r) => r.trip_id))
-  console.log(`Canonical trips from route_list: ${canonicalTripIds.size}`)
+  console.log(`  Canonical trips: ${canonicalTripIds.size}`)
 
-  // Load stop_times only for canonical trips
   const stopsByTrip = new Map()
   {
     const rl = createInterface({
@@ -207,45 +233,47 @@ async function main() {
     arr.sort((a, b) => a.seq - b.seq)
   }
 
-  // Collect needed shape ids
   const neededShapes = new Set()
   for (const tripId of canonicalTripIds) {
     const trip = tripById.get(tripId)
     if (trip?.shape_id) neededShapes.add(trip.shape_id)
   }
 
-  console.log(`Loading ${neededShapes.size} shapes…`)
+  console.log(`  Loading ${neededShapes.size} shapes…`)
   const shapes = new Map()
   {
-    const rl = createInterface({
-      input: createReadStream(path.join(gtfsDir, 'shapes.txt'), { encoding: 'utf8' }),
-      crlfDelay: Infinity,
-    })
-    let headers = null
-    let iId = 0
-    let iSeq = 1
-    let iLat = 2
-    let iLon = 3
-    for await (const raw of rl) {
-      const line = raw.replace(/^\uFEFF/, '')
-      if (!line.trim()) continue
-      const cols = parseCsvLine(line)
-      if (!headers) {
-        headers = cols
-        iId = headers.indexOf('shape_id')
-        iSeq = headers.indexOf('shape_pt_sequence')
-        iLat = headers.indexOf('shape_pt_lat')
-        iLon = headers.indexOf('shape_pt_lon')
-        continue
-      }
-      const sid = cols[iId]
-      if (!neededShapes.has(sid)) continue
-      if (!shapes.has(sid)) shapes.set(sid, [])
-      shapes.get(sid).push({
-        seq: Number(cols[iSeq]),
-        lat: Number(cols[iLat]),
-        lon: Number(cols[iLon]),
+    const shapesPath = path.join(gtfsDir, 'shapes.txt')
+    if (fs.existsSync(shapesPath)) {
+      const rl = createInterface({
+        input: createReadStream(shapesPath, { encoding: 'utf8' }),
+        crlfDelay: Infinity,
       })
+      let headers = null
+      let iId = 0
+      let iSeq = 1
+      let iLat = 2
+      let iLon = 3
+      for await (const raw of rl) {
+        const line = raw.replace(/^\uFEFF/, '')
+        if (!line.trim()) continue
+        const cols = parseCsvLine(line)
+        if (!headers) {
+          headers = cols
+          iId = headers.indexOf('shape_id')
+          iSeq = headers.indexOf('shape_pt_sequence')
+          iLat = headers.indexOf('shape_pt_lat')
+          iLon = headers.indexOf('shape_pt_lon')
+          continue
+        }
+        const sid = cols[iId]
+        if (!neededShapes.has(sid)) continue
+        if (!shapes.has(sid)) shapes.set(sid, [])
+        shapes.get(sid).push({
+          seq: Number(cols[iSeq]),
+          lat: Number(cols[iLat]),
+          lon: Number(cols[iLon]),
+        })
+      }
     }
   }
 
@@ -256,7 +284,6 @@ async function main() {
     shapeCoords.set(sid, coords)
   }
 
-  /** @type {Record<string, any>} */
   const gameRoutes = {}
   const usedStopIds = new Set()
   let patterns = 0
@@ -273,7 +300,6 @@ async function main() {
     for (const row of stopRows) {
       const stop = stopById.get(row.stopId)
       if (!stop || !stop.name) continue
-      // Prefer physical stops; skip parent stations if sequence already has children
       stopIds.push(row.stopId)
       usedStopIds.add(row.stopId)
     }
@@ -283,22 +309,25 @@ async function main() {
     const last = stopById.get(stopIds[stopIds.length - 1])
     if (!first || !last) continue
 
-    if (!gameRoutes[route.route_id]) {
-      gameRoutes[route.route_id] = {
-        id: route.route_id,
+    const routeKey = feed.id === 'tj' ? route.route_id : `${feed.id}:${route.route_id}`
+
+    if (!gameRoutes[routeKey]) {
+      gameRoutes[routeKey] = {
+        id: routeKey,
         code: route.route_short_name || route.route_id,
         name: route.route_long_name,
         desc: route.route_desc || '',
+        agency: feed.id,
         color: `#${(route.route_color || 'E31C23').replace(/^#/, '')}`,
         textColor: `#${(route.route_text_color || 'FFFFFF').replace(/^#/, '')}`,
-        difficulty: difficultyFromDesc(route.route_desc || ''),
+        difficulty: difficultyFromDesc(route.route_desc || '', feed.id),
         patterns: [],
       }
     }
 
     const shape = trip.shape_id ? shapeCoords.get(trip.shape_id) || [] : []
 
-    gameRoutes[route.route_id].patterns.push({
+    gameRoutes[routeKey].patterns.push({
       tripId: entry.trip_id,
       directionId: Number(entry.direction_id || 0),
       headsign: entry.stop_headsign || trip.trip_headsign || '',
@@ -312,7 +341,6 @@ async function main() {
     patterns++
   }
 
-  // Deduplicate near-identical patterns (same stop sequence)
   for (const route of Object.values(gameRoutes)) {
     const seen = new Set()
     route.patterns = route.patterns.filter((p) => {
@@ -330,13 +358,39 @@ async function main() {
     gameStops[id] = { id: s.id, name: s.name, lat: s.lat, lon: s.lon }
   }
 
+  return {
+    feed,
+    routes: gameRoutes,
+    stops: gameStops,
+    patternCount: patterns,
+  }
+}
+
+async function main() {
+  /** @type {Record<string, any>} */
+  const gameRoutes = {}
+  /** @type {Record<string, any>} */
+  const gameStops = {}
+  const sources = []
+  let patternCount = 0
+
+  for (const feed of FEEDS) {
+    const loaded = await loadFeed(feed)
+    if (!loaded) continue
+    sources.push(loaded.feed.source)
+    Object.assign(gameRoutes, loaded.routes)
+    Object.assign(gameStops, loaded.stops)
+    patternCount += loaded.patternCount
+  }
+
   const payload = {
     meta: {
-      source: 'https://gtfs.transjakarta.co.id/files/file_gtfs.zip',
+      source: sources.join(' + '),
       builtAt: new Date().toISOString(),
       routeCount: Object.keys(gameRoutes).length,
-      patternCount: patterns,
+      patternCount,
       stopCount: Object.keys(gameStops).length,
+      agencies: [...new Set(Object.values(gameRoutes).map((r) => r.agency))],
     },
     routes: gameRoutes,
     stops: gameStops,
@@ -348,6 +402,7 @@ async function main() {
   console.log(
     `Wrote ${outFile} (${mb} MB) — ${payload.meta.routeCount} routes, ${payload.meta.patternCount} patterns, ${payload.meta.stopCount} stops`,
   )
+  console.log(`  Agencies: ${payload.meta.agencies.join(', ')}`)
 }
 
 main().catch((err) => {

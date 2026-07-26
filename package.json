@@ -7,12 +7,17 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:data": "node scripts/build-game-data.mjs",
+    "build:krl": "node scripts/build-krl-gtfs.mjs",
     "fetch:gtfs": "curl -L --fail --retry 3 -o data/gtfs.zip https://gtfs.transjakarta.co.id/files/file_gtfs.zip && mkdir -p data/gtfs && unzip -o data/gtfs.zip -d data/gtfs",
-    "refresh:data": "npm run fetch:gtfs && npm run build:data",
+    "fetch:krl-shapes": "node scripts/fetch-krl-shapes.mjs",
+    "fetch:krl-stations": "node scripts/fetch-krl-stations.mjs",
+    "refresh:data": "npm run fetch:gtfs && npm run fetch:krl-shapes && npm run build:krl && npm run build:data",
+    "refresh:krl": "npm run fetch:krl-stations && npm run fetch:krl-shapes && npm run build:krl && npm run build:data",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@base-ui/react": "^1.6.0",
     "@radix-ui/react-dialog": "^1.1.21",
     "@radix-ui/react-dropdown-menu": "^2.1.22",
     "@radix-ui/react-progress": "^1.1.14",

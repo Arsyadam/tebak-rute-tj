@@ -11,6 +11,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { FitRoute, FlyToStop } from '@/components/MapHelpers'
+import { RouteBadge } from '@/components/RouteBadge'
+import PartitionBar, {
+  PartitionBarSegment,
+  PartitionBarSegmentTitle,
+  PartitionBarSegmentValue,
+} from '@/components/8starlabs-ui/partition-bar'
+import Shake from '@/components/8starlabs-ui/shake'
+import StatusIndicator from '@/components/8starlabs-ui/status-indicator'
 import { matchStopName, racePoints, type RouteRound } from '@/lib/game'
 import { sound } from '@/lib/sound'
 import type { GameRoom, RoomPlayer } from '@/lib/multiplayer'
@@ -45,6 +53,7 @@ export function NameStopsGame({
   const [guessed, setGuessed] = useState<Set<string>>(new Set())
   const [input, setInput] = useState('')
   const [flash, setFlash] = useState<'ok' | 'bad' | null>(null)
+  const [shakeSignal, setShakeSignal] = useState(0)
   const [localScore, setLocalScore] = useState(0)
   const [done, setDone] = useState(false)
   const [toast, setToast] = useState<HitToast | null>(null)
@@ -56,6 +65,7 @@ export function NameStopsGame({
 
   const round = rounds[roundIndex]
   const routeColor = round?.route.color || '#0b5ea8'
+  const score = room ? room.self.score : localScore
 
   useEffect(() => {
     startedAt.current = Date.now()
@@ -117,6 +127,7 @@ export function NameStopsGame({
     const hit = remaining.find((s) => matchStopName(text, s.name))
     if (!hit) {
       setFlash('bad')
+      setShakeSignal((n) => n + 1)
       sound.wrong()
       window.setTimeout(() => setFlash(null), 350)
       return
@@ -124,6 +135,7 @@ export function NameStopsGame({
 
     if (claimedRef.current.has(hit.id)) {
       setFlash('bad')
+      setShakeSignal((n) => n + 1)
       sound.wrong()
       return
     }
@@ -158,7 +170,6 @@ export function NameStopsGame({
   }
 
   if (done) {
-    const score = room ? room.self.score : localScore
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 bg-[#14171c] text-white">
         <p className="text-sm tracking-[0.2em] text-white/45 uppercase">Selesai</p>
@@ -170,9 +181,151 @@ export function NameStopsGame({
     )
   }
 
+  const sidePanel = (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex items-start gap-2 border-b border-border/60 px-4 py-3">
+        <Button
+          size="icon"
+          variant="secondary"
+          className="mt-0.5 shrink-0 rounded-full"
+          onClick={onExit}
+          disableHoverPop
+        >
+          <X className="size-4" />
+        </Button>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <RouteBadge
+              code={round.route.code}
+              name={round.route.name}
+              color={routeColor}
+              agency={round.route.agency}
+              size="sm"
+            />
+            <Badge variant="secondary" className="tabular-nums">
+              {roundIndex + 1}/{rounds.length}
+            </Badge>
+          </div>
+          <h1 className="mt-1.5 font-display text-xl font-bold leading-tight">
+            Ada halte apa saja di rute ini?
+          </h1>
+          <p className="mt-1 truncate text-sm text-muted-foreground">{round.route.name}</p>
+        </div>
+        <span className="shrink-0 text-sm font-bold tabular-nums">{score.toLocaleString('id-ID')}</span>
+      </div>
+
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
+        <div className="space-y-3 rounded-xl border border-border/60 bg-card p-3">
+          <StatusIndicator
+            state={allDone ? 'active' : 'fixing'}
+            label={`${guessed.size} / ${round.stops.length} halte ketemu`}
+            size="sm"
+          />
+          <PartitionBar size="sm" gap={1}>
+            <PartitionBarSegment num={Math.max(guessed.size, 0.01)} variant="default" alignment="left">
+              <PartitionBarSegmentTitle>Ketemu</PartitionBarSegmentTitle>
+              <PartitionBarSegmentValue>{guessed.size}</PartitionBarSegmentValue>
+            </PartitionBarSegment>
+            <PartitionBarSegment
+              num={Math.max(round.stops.length - guessed.size, 0.01)}
+              variant="muted"
+              alignment="right"
+            >
+              <PartitionBarSegmentTitle>Sisa</PartitionBarSegmentTitle>
+              <PartitionBarSegmentValue>
+                {round.stops.length - guessed.size}
+              </PartitionBarSegmentValue>
+            </PartitionBarSegment>
+          </PartitionBar>
+        </div>
+
+        {players.length > 1 ? (
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+              Race
+            </p>
+            {players
+              .slice()
+              .sort((a, b) => b.score - a.score)
+              .map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center gap-2 rounded-lg bg-muted px-2.5 py-1.5 text-sm"
+                >
+                  <span className="size-2 rounded-full" style={{ background: p.color }} />
+                  <span className={cn('min-w-0 flex-1 truncate', p.id === selfId && 'font-bold')}>
+                    {p.name}
+                  </span>
+                  <span className="tabular-nums text-muted-foreground">{p.score}</span>
+                </div>
+              ))}
+          </div>
+        ) : null}
+
+        {guessed.size > 0 ? (
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+              Ketemu
+            </p>
+            <ul className="space-y-1">
+              {round.stops
+                .filter((s) => guessed.has(s.id))
+                .map((s) => (
+                  <li
+                    key={s.id}
+                    className="flex items-center gap-2 rounded-lg px-2 py-1 text-sm text-foreground"
+                  >
+                    <Check className="size-3.5 shrink-0" style={{ color: routeColor }} />
+                    <span className="truncate">{s.name}</span>
+                  </li>
+                ))}
+            </ul>
+          </div>
+        ) : (
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Ketik nama halte di bawah. Tengah peta sengaja dikosongin biar jalur kelihatan.
+          </p>
+        )}
+      </div>
+
+      <div className="border-t border-border/60 p-4">
+        {allDone ? (
+          <div className="space-y-2">
+            <p className="text-sm text-foreground">Semua halte ketemu!</p>
+            <Button className="h-11 w-full" onClick={nextRound} withArrow>
+              {roundIndex + 1 >= rounds.length ? 'Lihat skor' : 'Rute berikutnya'}
+            </Button>
+          </div>
+        ) : (
+          <Shake signal={shakeSignal}>
+            <form onSubmit={submit} className="flex gap-2">
+              <Input
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ketik nama halte…"
+                className="h-11 bg-background text-base"
+                autoComplete="off"
+                autoFocus
+                aria-invalid={flash === 'bad' || undefined}
+              />
+              <Button type="submit" className="h-11 px-5 font-bold" withArrow>
+                Tebak
+              </Button>
+            </form>
+          </Shake>
+        )}
+      </div>
+    </div>
+  )
+
   return (
-    <div className="relative h-full w-full overflow-hidden bg-[#e9ecef]">
-      <div className="absolute inset-0">
+    <div className="relative flex h-full w-full overflow-hidden bg-[#e9ecef]">
+      <aside className="absolute inset-x-0 bottom-0 z-20 flex max-h-[48%] flex-col overflow-hidden rounded-t-2xl border border-black/8 bg-white shadow-[0_-8px_28px_rgba(0,0,0,0.12)] lg:static lg:inset-auto lg:z-auto lg:h-full lg:max-h-none lg:w-[380px] lg:shrink-0 lg:rounded-none lg:border-r lg:border-b-0 lg:shadow-[8px_0_24px_rgba(0,0,0,0.06)] xl:w-[420px]">
+        {sidePanel}
+      </aside>
+
+      <div className="relative min-h-0 min-w-0 flex-1 pb-[min(48%,26rem)] lg:pb-0">
         <Map
           key={round.id}
           theme="light"
@@ -227,110 +380,20 @@ export function NameStopsGame({
             )
           })}
         </Map>
-      </div>
 
-      {/* Hit toast */}
-      {toast ? (
-        <div className="toast-in pointer-events-none absolute top-1/3 left-1/2 z-40 w-[min(90vw,22rem)] -translate-x-1/2">
-          <div className="rounded-2xl border border-black/10 bg-white/95 px-4 py-3 text-center shadow-2xl backdrop-blur">
-            <p className="text-xs font-semibold tracking-wide text-[#667085] uppercase">
-              Halte ketemu · {toast.by}
-            </p>
-            <p className="mt-1 font-display text-xl font-bold text-[#1c1f26]">{toast.name}</p>
-            <p className="mt-1 text-lg font-extrabold" style={{ color: routeColor }}>
-              +{toast.points.toLocaleString('id-ID')}
-            </p>
-          </div>
-        </div>
-      ) : null}
-
-      {/* HUD — GeoGuessr-like neutral panel */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 p-3 sm:p-4">
-        <div className="pointer-events-auto mx-auto flex max-w-3xl items-start gap-3">
-          <Button
-            size="icon"
-            variant="secondary"
-            className="rounded-full bg-white/95 shadow"
-            onClick={onExit}
-          >
-            <X className="size-4" />
-          </Button>
-          <div className="min-w-0 flex-1 rounded-2xl border border-black/8 bg-white/92 px-4 py-3 shadow-xl backdrop-blur-md">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge
-                className="border-0 text-white hover:opacity-90"
-                style={{ background: routeColor }}
-              >
-                Rute {round.route.code}
-              </Badge>
-              <span className="text-xs text-[#667085]">
-                {roundIndex + 1}/{rounds.length}
-              </span>
-              <span className="ml-auto text-sm font-bold text-[#1c1f26] tabular-nums">
-                {(room ? room.self.score : localScore).toLocaleString('id-ID')} pts
-              </span>
+        {toast ? (
+          <div className="toast-in pointer-events-none absolute top-6 left-1/2 z-30 w-[min(90%,20rem)] -translate-x-1/2">
+            <div className="rounded-2xl border border-black/10 bg-white/95 px-4 py-3 text-center shadow-2xl backdrop-blur">
+              <p className="text-xs font-semibold tracking-wide text-[#667085] uppercase">
+                Halte ketemu · {toast.by}
+              </p>
+              <p className="mt-1 font-display text-xl font-bold text-[#1c1f26]">{toast.name}</p>
+              <p className="mt-1 text-lg font-extrabold" style={{ color: routeColor }}>
+                +{toast.points.toLocaleString('id-ID')}
+              </p>
             </div>
-            <h1 className="mt-1 font-display text-lg font-bold tracking-tight sm:text-xl">
-              Ada halte apa saja di rute ini?
-            </h1>
-            <p className="truncate text-sm text-[#667085]">
-              {round.route.name} · {guessed.size}/{round.stops.length} ketemu
-            </p>
           </div>
-        </div>
-      </div>
-
-      {players.length > 1 ? (
-        <div className="absolute top-28 right-3 z-20 flex flex-col gap-1 sm:top-4">
-          {players
-            .slice()
-            .sort((a, b) => b.score - a.score)
-            .map((p) => (
-              <div
-                key={p.id}
-                className="flex items-center gap-2 rounded-full bg-white/92 px-2.5 py-1 text-xs shadow backdrop-blur"
-              >
-                <span className="size-2 rounded-full" style={{ background: p.color }} />
-                <span className={cn(p.id === selfId && 'font-bold')}>{p.name}</span>
-                <span className="tabular-nums text-[#667085]">{p.score}</span>
-              </div>
-            ))}
-        </div>
-      ) : null}
-
-      <div className="absolute inset-x-0 bottom-0 z-30 p-3 sm:p-4">
-        <div
-          className={cn(
-            'mx-auto max-w-xl rounded-2xl border bg-white/95 p-3 shadow-2xl backdrop-blur-md transition',
-            flash === 'ok' && 'border-amber-400 ring-2 ring-amber-400/35',
-            flash === 'bad' && 'border-rose-400 ring-2 ring-rose-400/35',
-            !flash && 'border-black/8',
-          )}
-        >
-          {allDone ? (
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <p className="flex-1 text-sm text-[#2a2f3a]">Semua halte ketemu!</p>
-              <Button className="bg-[var(--tj)] hover:bg-[#094a86]" onClick={nextRound}>
-                {roundIndex + 1 >= rounds.length ? 'Lihat skor' : 'Rute berikutnya'}
-              </Button>
-            </div>
-          ) : (
-            <form onSubmit={submit} className="flex gap-2">
-              <Input
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Ketik nama halte…"
-                className="h-12 border-[#d8dde6] bg-white text-base"
-                autoComplete="off"
-                autoFocus
-              />
-              <Button type="submit" className="h-12 bg-[var(--tj)] px-6 font-bold hover:bg-[#094a86]">
-                Tebak
-              </Button>
-            </form>
-          )}
-        </div>
+        ) : null}
       </div>
     </div>
   )

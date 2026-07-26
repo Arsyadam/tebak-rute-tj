@@ -1,4 +1,5 @@
 import type { Difficulty, GameData, GameMode, Pattern, Route, Stop } from '@/types'
+import { loadRecentRoutes, rememberRoutes } from '@/lib/recent'
 
 export interface RouteRound {
   id: string
@@ -21,8 +22,13 @@ function mulberry32(seed: number) {
   }
 }
 
-function pick<T>(arr: T[], rand: () => number): T {
-  return arr[Math.floor(rand() * arr.length)]!
+function shuffle<T>(arr: T[], rand: () => number): T[] {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1))
+    ;[a[i], a[j]] = [a[j]!, a[i]!]
+  }
+  return a
 }
 
 function toLngLat(latLon: [number, number]): [number, number] {
@@ -85,27 +91,51 @@ export function buildRouteRound(
   }
 }
 
+/**
+ * Pick rounds with shuffle + avoid recently played routes (localStorage).
+ * Prefers unique route IDs, then unique direction patterns.
+ */
 export function pickRouteRounds(
   data: GameData,
   difficulty: Difficulty | 'all',
   count: number,
   seed = Date.now(),
 ): RouteRound[] {
-  const rand = mulberry32(seed)
-  const patterns = listPatterns(data, difficulty)
+  const rand = mulberry32(seed ^ 0x85ebca6b)
+  const patterns = shuffle(listPatterns(data, difficulty), rand)
+  if (!patterns.length) return []
+
+  const recent = new Set(loadRecentRoutes())
+  const fresh = patterns.filter((p) => !recent.has(p.route.id))
+  const pool = fresh.length >= count ? fresh : patterns
+
   const rounds: RouteRound[] = []
-  const used = new Set<string>()
-  let guard = 0
-  while (rounds.length < count && guard < count * 40) {
-    guard++
-    const ref = pick(patterns, rand)
-    const key = `${ref.route.id}-${ref.pattern.directionId}`
-    if (used.has(key)) continue
+  const usedRoute = new Set<string>()
+  const usedPattern = new Set<string>()
+
+  // Pass 1: unique routes only
+  for (const ref of pool) {
+    if (rounds.length >= count) break
+    if (usedRoute.has(ref.route.id)) continue
     const round = buildRouteRound(data, ref.route, ref.pattern)
     if (!round) continue
-    used.add(key)
+    usedRoute.add(ref.route.id)
+    usedPattern.add(`${ref.route.id}-${ref.pattern.directionId}-${ref.pattern.tripId}`)
     rounds.push(round)
   }
+
+  // Pass 2: allow other directions / patterns if still short
+  for (const ref of shuffle(patterns, rand)) {
+    if (rounds.length >= count) break
+    const key = `${ref.route.id}-${ref.pattern.directionId}-${ref.pattern.tripId}`
+    if (usedPattern.has(key)) continue
+    const round = buildRouteRound(data, ref.route, ref.pattern)
+    if (!round) continue
+    usedPattern.add(key)
+    rounds.push(round)
+  }
+
+  rememberRoutes(rounds.map((r) => r.route.id))
   return rounds
 }
 
@@ -127,7 +157,6 @@ export function matchStopName(input: string, stopName: string) {
   if (a === b) return true
   if (b.includes(a) && a.length >= Math.min(6, b.length)) return true
   if (a.includes(b) && b.length >= 5) return true
-  // token overlap
   const ta = new Set(a.split(' '))
   const tb = b.split(' ')
   const hit = tb.filter((t) => t.length > 2 && ta.has(t)).length
@@ -153,6 +182,11 @@ export const MODE_META: Record<
     title: 'Tebak dari Jalur',
     blurb: 'Lihat bentuk jalur di peta, pilih kode rutanya.',
     tip: 'Select jawaban dari daftar rute.',
+  },
+  'plan-trip': {
+    title: 'Dari A ke B',
+    blurb: 'Naik apa, transit di mana, lanjut naik apa.',
+    tip: 'Direct atau 1x transit — disusun dari data GTFS.',
   },
 }
 
