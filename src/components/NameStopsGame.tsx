@@ -321,7 +321,7 @@ export function NameStopsGame({
           </div>
         ) : (
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Ketik nama halte di bawah. Tengah peta sengaja dikosongin biar jalur kelihatan.
+            Ketik nama halte di bawah. Zoom/geser peta kalau jalur kurang kebaca.
           </p>
         )}
       </div>
