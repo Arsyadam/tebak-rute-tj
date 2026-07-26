@@ -17,37 +17,43 @@ function setAuthCookie(res: Response, token: string) {
   })
 }
 
-passport.use(
-  new GoogleStrategy(
-    {
-      clientID: process.env.GOOGLE_CLIENT_ID || '',
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-      callbackURL: '/api/auth/google/callback',
-    },
-    async (_accessToken, _refreshToken, profile, done) => {
-      const googleId = profile.id
-      const email = profile.emails?.[0]?.value
-      const name = profile.displayName || email || 'Google User'
-      try {
-        let user = await prisma.user.findFirst({ where: { googleId } })
-        if (!user) {
-          user = await prisma.user.create({
-            data: {
-              email,
-              name,
-              googleId,
-              color: randomColor(),
-              isGuest: false,
-            },
-          })
+const googleClientId = process.env.GOOGLE_CLIENT_ID
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET
+const googleEnabled = !!(googleClientId && googleClientSecret)
+
+if (googleEnabled) {
+  passport.use(
+    new GoogleStrategy(
+      {
+        clientID: googleClientId,
+        clientSecret: googleClientSecret,
+        callbackURL: '/api/auth/google/callback',
+      },
+      async (_accessToken, _refreshToken, profile, done) => {
+        const googleId = profile.id
+        const email = profile.emails?.[0]?.value
+        const name = profile.displayName || email || 'Google User'
+        try {
+          let user = await prisma.user.findFirst({ where: { googleId } })
+          if (!user) {
+            user = await prisma.user.create({
+              data: {
+                email,
+                name,
+                googleId,
+                color: randomColor(),
+                isGuest: false,
+              },
+            })
+          }
+          done(null, user)
+        } catch (err) {
+          done(err as Error)
         }
-        done(null, user)
-      } catch (err) {
-        done(err as Error)
-      }
-    },
-  ),
-)
+      },
+    ),
+  )
+}
 
 authRouter.post('/register', async (req, res) => {
   const { email, password, name } = req.body as { email?: string; password?: string; name?: string }
@@ -134,15 +140,24 @@ authRouter.get('/me', requireAuth, async (req, res) => {
   res.json({ user })
 })
 
-authRouter.get('/google', passport.authenticate('google', { scope: ['profile', 'email'], session: false }))
+if (googleEnabled) {
+  authRouter.get('/google', passport.authenticate('google', { scope: ['profile', 'email'], session: false }))
 
-authRouter.get(
-  '/google/callback',
-  passport.authenticate('google', { session: false, failureRedirect: '/login' }),
-  (req, res) => {
-    const user = req.user as { id: string }
-    const token = signToken({ userId: user.id })
-    setAuthCookie(res, token)
-    res.redirect(process.env.FRONTEND_URL || '/')
-  },
-)
+  authRouter.get(
+    '/google/callback',
+    passport.authenticate('google', { session: false, failureRedirect: '/login' }),
+    (req, res) => {
+      const user = req.user as { id: string }
+      const token = signToken({ userId: user.id })
+      setAuthCookie(res, token)
+      res.redirect(process.env.FRONTEND_URL || '/')
+    },
+  )
+} else {
+  authRouter.get('/google', (_req, res) => {
+    res.status(503).json({ error: 'Google login is not configured' })
+  })
+  authRouter.get('/google/callback', (_req, res) => {
+    res.status(503).json({ error: 'Google login is not configured' })
+  })
+}
