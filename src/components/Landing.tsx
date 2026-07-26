@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Map } from '@/components/ui/map'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -55,6 +55,8 @@ export function Landing({ data, onStart }: Props) {
   const [status, setStatus] = useState('')
   const [busy, setBusy] = useState(false)
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
+  const autoJoinRef = useRef(false)
+  const joinInFlightRef = useRef(false)
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -74,6 +76,7 @@ export function Landing({ data, onStart }: Props) {
   useEffect(() => {
     if (!user) {
       setPlayers([])
+      autoJoinRef.current = false
       return
     }
     setPlayers([{ id: user.id, name: user.name, color: user.color, score: 0 }])
@@ -182,13 +185,17 @@ export function Landing({ data, onStart }: Props) {
     }
   }
 
-  const joinRoom = async () => {
-    if (!user || !roomCode) return
+  const joinRoom = async (codeOverride?: string) => {
+    const code = (codeOverride || roomCode).trim().toUpperCase()
+    if (!user || !code || joinInFlightRef.current || room) return
+    joinInFlightRef.current = true
     setBusy(true)
-    setStatus(`Gabung room ${roomCode.toUpperCase()}…`)
+    setRoomCode(code)
+    setPlayStyle('friends')
+    setStatus(`Gabung room ${code}…`)
     try {
       sound.unlock()
-      const r = await GameRoom.join(user, roomCode)
+      const r = await GameRoom.join(user, code)
       r.onRoster = setPlayers
       r.onStatus = setStatus
       r.onStart = ({ seed, mode: m, difficulty: d }) => {
@@ -202,14 +209,27 @@ export function Landing({ data, onStart }: Props) {
         })
       }
       setRoom(r)
-      setPlayStyle('friends')
+      setStatus('Sudah gabung · menunggu host')
       sound.join()
     } catch (e) {
+      autoJoinRef.current = false
       setStatus(e instanceof Error ? e.message : 'Gagal gabung room')
     } finally {
+      joinInFlightRef.current = false
       setBusy(false)
     }
   }
+
+  // Deep-link: once authenticated with ?room=CODE, join automatically.
+  useEffect(() => {
+    if (!user || room || busy || authLoading) return
+    if (!roomCode || autoJoinRef.current) return
+    const params = new URLSearchParams(window.location.search)
+    if (!params.get('room')) return
+    autoJoinRef.current = true
+    void joinRoom(roomCode)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- join once per auth+deeplink
+  }, [user, room, roomCode, busy, authLoading])
 
   if (authLoading) {
     return (
@@ -404,7 +424,7 @@ export function Landing({ data, onStart }: Props) {
                     className="tracking-widest"
                     maxLength={6}
                   />
-                  <Button disabled={!canPlay || busy} variant="secondary" onClick={joinRoom}>
+                  <Button disabled={!canPlay || busy} variant="secondary" onClick={() => void joinRoom()}>
                     Join
                   </Button>
                 </div>
@@ -416,7 +436,7 @@ export function Landing({ data, onStart }: Props) {
                   size="sm"
                 />
               ) : null}
-              {room ? (
+              {room?.isHost ? (
                 <div className="rounded-xl border border-black/8 bg-white/90 p-3 text-sm">
                   <p className="mb-1.5 text-xs text-muted-foreground">Bagikan link room:</p>
                   <div className="flex gap-2">

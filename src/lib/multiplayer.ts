@@ -89,20 +89,25 @@ export class GameRoom {
     }
     const room = new GameRoom(code.toUpperCase(), peer, false, self)
     const conn = peer.connect(roomPeerId(code.toUpperCase()), { reliable: true })
-    await waitOpen(conn)
+    // Wire before waiting so we never miss the open event / always register the conn.
     room.wireConn(conn)
+    await waitOpen(conn)
     conn.send({ type: 'hello', player: self } satisfies RoomMessage)
-    room.onStatus(`Gabung room ${code.toUpperCase()}…`)
+    room.onStatus(`Sudah gabung · menunggu host`)
     return room
   }
 
   private wireConn(conn: DataConnection) {
-    conn.on('open', () => {
+    const register = () => {
       this.connections.set(conn.peer, conn)
-      if (this.isHost) {
-        this.broadcastRoster()
-      }
-    })
+      if (this.isHost) this.broadcastRoster()
+    }
+
+    // PeerJS may have already fired `open` before this handler is attached
+    // (join() awaits open, then used to call wireConn afterwards).
+    if (conn.open) register()
+    else conn.on('open', register)
+
     conn.on('data', (raw) => {
       const msg = raw as RoomMessage
       if (msg.type === 'hello' && this.isHost) {
@@ -149,7 +154,8 @@ export class GameRoom {
       points,
       name: this.self.name,
     }
-    // apply locally
+    // Apply locally, then fan out. Peers apply once via guess-stop only
+    // (no score-sync from applyScore — that caused double counting).
     this.onGuessStop(msg)
     this.broadcast(msg)
   }
@@ -160,9 +166,7 @@ export class GameRoom {
     p.score += points
     this.players.set(playerId, p)
     if (playerId === this.self.id) this.self = p
-    const players = [...this.players.values()]
-    this.onRoster(players)
-    if (this.isHost) this.broadcast({ type: 'score-sync', players })
+    this.onRoster([...this.players.values()])
   }
 
   broadcast(msg: RoomMessage) {
@@ -187,6 +191,10 @@ function openPeer(id?: string) {
 
 function waitOpen(conn: DataConnection) {
   return new Promise<void>((resolve, reject) => {
+    if (conn.open) {
+      resolve()
+      return
+    }
     const t = setTimeout(() => reject(new Error('Timeout join room')), 12000)
     conn.on('open', () => {
       clearTimeout(t)
