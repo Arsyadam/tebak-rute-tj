@@ -13,6 +13,7 @@ interface TransitGuessrHeroProps {
   onClearPinError?: () => void
   onLoginClick?: () => void
   onSignUpClick?: () => void
+  stickyStartCard?: boolean
 }
 
 const TransitGuessrHero: FC<TransitGuessrHeroProps> = ({
@@ -25,6 +26,7 @@ const TransitGuessrHero: FC<TransitGuessrHeroProps> = ({
   onClearPinError,
   onLoginClick,
   onSignUpClick,
+  stickyStartCard,
 }) => {
   return (
     <section className={styles.heroRoot}>
@@ -77,7 +79,9 @@ const TransitGuessrHero: FC<TransitGuessrHeroProps> = ({
           </p>
         </div>
 
-        <div className={styles.rightPanel}>{startCard}</div>
+        <div className={`${styles.rightPanel}${stickyStartCard ? ` ${styles.rightPanelSticky}` : ''}`}>
+          {startCard}
+        </div>
       </div>
     </section>
   )

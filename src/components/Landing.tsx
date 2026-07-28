@@ -349,6 +349,7 @@ export function Landing({ data, onStart }: Props) {
   return (
     <div className="h-full overflow-auto bg-[#ebf4f9]">
       <TransitGuessrHero
+        stickyStartCard={Boolean(user) && playStyle === 'friends'}
         pinValue={roomCode}
         pinError={pinError}
         pinDisabled={busy}
