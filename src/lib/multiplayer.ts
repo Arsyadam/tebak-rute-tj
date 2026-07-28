@@ -1,4 +1,4 @@
-import Peer, { type DataConnection } from 'peerjs'
+import { io, Socket } from 'socket.io-client'
 import type { UserProfile } from '@/types'
 import { api } from '@/api/client'
 
@@ -17,10 +17,6 @@ export type RoomMessage =
   | { type: 'score-sync'; players: RoomPlayer[] }
   | { type: 'chat'; name: string; text: string }
 
-function roomPeerId(code: string) {
-  return `transitguestr-${code.toLowerCase()}`
-}
-
 export function makeRoomCode() {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
   let s = ''
@@ -30,10 +26,9 @@ export function makeRoomCode() {
 
 export class GameRoom {
   code: string
-  peer: Peer
+  socket: Socket
   isHost: boolean
   players = new Map<string, RoomPlayer>()
-  connections = new Map<string, DataConnection>()
   self: RoomPlayer
   onRoster: (players: RoomPlayer[]) => void = () => {}
   onStart: (payload: { seed: number; mode: string; difficulty: string }) => void = () => {}
@@ -45,9 +40,9 @@ export class GameRoom {
   }) => void = () => {}
   onStatus: (msg: string) => void = () => {}
 
-  private constructor(code: string, peer: Peer, isHost: boolean, self: RoomPlayer) {
+  private constructor(code: string, socket: Socket, isHost: boolean, self: RoomPlayer) {
     this.code = code
-    this.peer = peer
+    this.socket = socket
     this.isHost = isHost
     this.self = self
     this.players.set(self.id, self)
@@ -62,102 +57,40 @@ export class GameRoom {
       method: 'POST',
       body: JSON.stringify({ mode, difficulty }),
     })) as { code: string }
-    const code = res.code
-    const peer = await openPeer(roomPeerId(code))
-    const self: RoomPlayer = {
-      id: user.id,
-      name: user.name,
-      color: user.color,
-      score: 0,
-    }
-    const room = new GameRoom(code, peer, true, self)
-    peer.on('connection', (conn) => {
-      room.wireConn(conn)
-    })
-    room.onStatus(`Room ${code} siap. Bagikan link ke teman.`)
+    const code = res.code.toUpperCase()
+    const socket = connectSocket()
+    const self: RoomPlayer = { id: user.id, name: user.name, color: user.color, score: 0 }
+    const room = new GameRoom(code, socket, true, self)
+    wireSocket(room, socket)
+    await waitConnect(socket)
+    socket.emit('host', { code, mode, difficulty })
     return room
   }
 
   static async join(user: UserProfile, code: string): Promise<GameRoom> {
     await api(`/rooms/${code.toUpperCase()}`)
-    const peer = await openPeer()
-    const self: RoomPlayer = {
-      id: user.id,
-      name: user.name,
-      color: user.color,
-      score: 0,
-    }
-    const room = new GameRoom(code.toUpperCase(), peer, false, self)
-    const conn = peer.connect(roomPeerId(code.toUpperCase()), { reliable: true })
-    // Wire before waiting so we never miss the open event / always register the conn.
-    room.wireConn(conn)
-    await waitOpen(conn)
-    conn.send({ type: 'hello', player: self } satisfies RoomMessage)
-    room.onStatus(`Sudah gabung · menunggu host`)
+    const socket = connectSocket()
+    const self: RoomPlayer = { id: user.id, name: user.name, color: user.color, score: 0 }
+    const room = new GameRoom(code.toUpperCase(), socket, false, self)
+    wireSocket(room, socket)
+    await waitConnect(socket)
+    socket.emit('join', { code: code.toUpperCase() })
     return room
-  }
-
-  private wireConn(conn: DataConnection) {
-    const register = () => {
-      this.connections.set(conn.peer, conn)
-      if (this.isHost) this.broadcastRoster()
-    }
-
-    // PeerJS may have already fired `open` before this handler is attached
-    // (join() awaits open, then used to call wireConn afterwards).
-    if (conn.open) register()
-    else conn.on('open', register)
-
-    conn.on('data', (raw) => {
-      const msg = raw as RoomMessage
-      if (msg.type === 'hello' && this.isHost) {
-        this.players.set(msg.player.id, { ...msg.player, score: 0 })
-        this.connections.set(conn.peer, conn)
-        this.broadcastRoster()
-      }
-      if (msg.type === 'roster') {
-        this.players.clear()
-        for (const p of msg.players) this.players.set(p.id, p)
-        this.onRoster([...this.players.values()])
-      }
-      if (msg.type === 'start') this.onStart(msg)
-      if (msg.type === 'guess-stop') this.onGuessStop(msg)
-      if (msg.type === 'score-sync') {
-        this.players.clear()
-        for (const p of msg.players) this.players.set(p.id, p)
-        this.onRoster([...this.players.values()])
-      }
-    })
-    conn.on('close', () => {
-      this.connections.delete(conn.peer)
-    })
-  }
-
-  broadcastRoster() {
-    const players = [...this.players.values()]
-    this.onRoster(players)
-    this.broadcast({ type: 'roster', players })
   }
 
   startGame(seed: number, mode: string, difficulty: string) {
     if (!this.isHost) return
-    const payload = { type: 'start' as const, seed, mode, difficulty }
-    this.broadcast(payload)
-    this.onStart(payload)
+    this.socket.emit('start', { seed, mode, difficulty })
   }
 
   sendGuessStop(stopId: string, points: number) {
-    const msg: RoomMessage = {
-      type: 'guess-stop',
+    this.socket.emit('guess-stop', { stopId, points })
+    this.onGuessStop({
       playerId: this.self.id,
       stopId,
       points,
       name: this.self.name,
-    }
-    // Apply locally, then fan out. Peers apply once via guess-stop only
-    // (no score-sync from applyScore — that caused double counting).
-    this.onGuessStop(msg)
-    this.broadcast(msg)
+    })
   }
 
   applyScore(playerId: string, points: number) {
@@ -169,40 +102,61 @@ export class GameRoom {
     this.onRoster([...this.players.values()])
   }
 
-  broadcast(msg: RoomMessage) {
-    for (const conn of this.connections.values()) {
-      if (conn.open) conn.send(msg)
-    }
+  destroy() {
+    this.socket.emit('leave')
+    this.socket.disconnect()
   }
 
-  destroy() {
-    for (const c of this.connections.values()) c.close()
-    this.peer.destroy()
+  syncScores() {
+    const players = [...this.players.values()].map((p) => ({ id: p.id, score: p.score }))
+    this.socket.emit('score-sync', { players })
   }
 }
 
-function openPeer(id?: string) {
-  return new Promise<Peer>((resolve, reject) => {
-    const peer = id ? new Peer(id) : new Peer()
-    peer.on('open', () => resolve(peer))
-    peer.on('error', (err) => reject(err))
+function connectSocket(): Socket {
+  const baseUrl = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '') : window.location.origin
+  return io(baseUrl, {
+    path: '/socket.io',
+    withCredentials: true,
+    transports: ['websocket', 'polling'],
+    reconnectionAttempts: 5,
   })
 }
 
-function waitOpen(conn: DataConnection) {
-  return new Promise<void>((resolve, reject) => {
-    if (conn.open) {
+function waitConnect(socket: Socket): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (socket.connected) {
       resolve()
       return
     }
-    const t = setTimeout(() => reject(new Error('Timeout join room')), 12000)
-    conn.on('open', () => {
+    const t = setTimeout(() => reject(new Error('Timeout connect socket')), 10000)
+    socket.once('connect', () => {
       clearTimeout(t)
       resolve()
     })
-    conn.on('error', (e) => {
+    socket.once('connect_error', (e) => {
       clearTimeout(t)
       reject(e)
     })
+  })
+}
+
+function wireSocket(room: GameRoom, socket: Socket) {
+  socket.on('status', ({ message, error }: { message?: string; error?: string }) => {
+    room.onStatus(error ? `Gagal: ${error}` : message || '')
+  })
+
+  socket.on('roster', ({ players }: { players: RoomPlayer[] }) => {
+    room.players.clear()
+    for (const p of players) room.players.set(p.id, p)
+    room.onRoster(players)
+  })
+
+  socket.on('start', (payload: { seed: number; mode: string; difficulty: string }) => {
+    room.onStart(payload)
+  })
+
+  socket.on('guess-stop', (payload: { playerId: string; stopId: string; points: number; name: string }) => {
+    room.onGuessStop(payload)
   })
 }

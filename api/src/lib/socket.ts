@@ -125,6 +125,18 @@ export function createSocketServer(httpServer: HttpServer) {
       broadcastRoster(state, io)
     })
 
+    socket.on('leave', () => {
+      const state = findRoomBySocket(socket.id)
+      if (!state) return
+      state.players.delete(socket.id)
+      state.sockets.delete(socket.id)
+      if (state.players.size === 0) {
+        rooms.delete(state.code)
+        return
+      }
+      broadcastRoster(state, io)
+    })
+
     socket.on('disconnect', () => {
       const state = findRoomBySocket(socket.id)
       if (!state) return
