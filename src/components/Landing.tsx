@@ -220,6 +220,19 @@ export function Landing({ data, onStart }: Props) {
     }
   }
 
+  const leaveRoom = async () => {
+    if (!room) return
+    room.destroy()
+    setRoom(null)
+    setPlayers(user ? [{ id: user.id, name: user.name, color: user.color, score: 0 }] : [])
+    setStatus('')
+    setRoomCode('')
+    setPlayStyle('solo')
+    autoJoinRef.current = false
+    joinInFlightRef.current = false
+    sound.click()
+  }
+
   // Deep-link: once authenticated with ?room=CODE, join automatically.
   useEffect(() => {
     if (!user || room || busy || authLoading) return
@@ -466,14 +479,25 @@ export function Landing({ data, onStart }: Props) {
                   ))}
                 </div>
               ) : null}
-              <Button
-                size="lg"
-                disabled={!canPlay || !room || !room.isHost}
-                className="h-12 w-full text-base font-bold"
-                onClick={startFriends}
-              >
-                {room?.isHost ? 'Start race' : 'Menunggu host…'}
-              </Button>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Button
+                  size="lg"
+                  disabled={!canPlay || !room || !room.isHost}
+                  className="h-12 w-full text-base font-bold"
+                  onClick={startFriends}
+                >
+                  {room?.isHost ? 'Start race' : 'Menunggu host…'}
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  disabled={!room}
+                  className="h-12 w-full text-base font-bold"
+                  onClick={() => void leaveRoom()}
+                >
+                  Keluar room
+                </Button>
+              </div>
             </TabsContent>
           </Tabs>
         </section>
