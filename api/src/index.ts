@@ -3,6 +3,7 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import cookieParser from 'cookie-parser'
+import { createServer } from 'node:http'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { authRouter } from './routes/auth.js'
@@ -10,6 +11,7 @@ import { gamesRouter } from './routes/games.js'
 import { leaderboardRouter } from './routes/leaderboard.js'
 import { historyRouter } from './routes/history.js'
 import { roomsRouter } from './routes/rooms.js'
+import { createSocketServer } from './lib/socket.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
@@ -34,10 +36,6 @@ app.use(
         "img-src": ["'self'", "data:", "blob:", "https:"],
         "connect-src": [
           "'self'",
-          "https://0.peerjs.com",
-          "wss://0.peerjs.com",
-          "https://*.peerjs.com",
-          "wss://*.peerjs.com",
           "https://basemaps.cartocdn.com",
           "https://*.basemaps.cartocdn.com",
           "https://*.tile.openstreetmap.org",
@@ -52,7 +50,6 @@ app.use(
           "https://tpc.googlesyndication.com",
           "https://www.google.com",
         ],
-        // Behind Cloudflare Flexible SSL; avoid forcing HTTPS upgrades that can loop.
         "upgrade-insecure-requests": null,
       },
     },
@@ -82,6 +79,9 @@ if (process.env.NODE_ENV === 'production') {
   })
 }
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`TransitGuessr API listening on http://0.0.0.0:${PORT}`)
+const httpServer = createServer(app)
+createSocketServer(httpServer)
+
+httpServer.listen(PORT, '0.0.0.0', () => {
+  console.log(`TransitGuessr API + WS listening on http://0.0.0.0:${PORT}`)
 })
