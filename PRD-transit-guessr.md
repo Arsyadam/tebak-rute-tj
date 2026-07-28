@@ -238,7 +238,7 @@ Bila pakai LLM: **jangan** mengarang urutan halte — selalu grounded ke dataset
 ### Open questions
 1. Sumber data resmi mana yang jadi “source of truth” (GTFS vs dump internal)?
 2. Apakah arah rute (A→B vs B→A) ditampilkan sebagai soal terpisah?
-3. Branding: tetap “Tebak Jalur TJ” atau nama lain yang lebih catchy?
+3. Branding: tetap TransitGuessr atau perlu variasi/tagline lain?
 4. Apakah boleh ada iklan / monetisasi nanti, atau tetap hobby project?
 
 ---

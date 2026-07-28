@@ -68,7 +68,7 @@ function App() {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center bg-[#e9ecef] text-[#667085]">
-        Memuat peta rute…
+        Lagi memuat peta rute…
       </div>
     )
   }
@@ -77,7 +77,7 @@ function App() {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 bg-slate-950 text-white">
         <p className="text-rose-400">{error || 'Data tidak tersedia'}</p>
-        <p className="text-sm text-sky-100/50">Jalankan npm run build:data</p>
+        <p className="text-sm text-sky-100/50">Jalankan `npm run build:data`, lalu coba lagi.</p>
       </div>
     )
   }
@@ -89,7 +89,7 @@ function App() {
       if (journeys.length === 0) {
         return (
           <div className="flex h-full flex-col items-center justify-center gap-3 bg-[#e9ecef]">
-            <p className="text-[#667085]">Belum ketemu perjalanan untuk filter ini.</p>
+            <p className="text-[#667085]">Belum ketemu perjalanan yang cocok buat filter ini.</p>
             <Button onClick={exit}>Kembali</Button>
           </div>
         )
@@ -101,6 +101,7 @@ function App() {
           journeys={journeys}
           onExit={exit}
           onFinished={finish}
+          difficultyLevel={session.difficultyLevel}
         />
       )
     }
@@ -115,6 +116,7 @@ function App() {
           room={session.room}
           onExit={exit}
           onFinished={finish}
+          difficultyLevel={session.difficultyLevel}
         />
       )
     }
@@ -127,6 +129,7 @@ function App() {
           rounds={rounds}
           onExit={exit}
           onFinished={finish}
+          difficultyLevel={session.difficultyLevel}
         />
       )
     }

@@ -7,6 +7,8 @@ export type Difficulty =
   | 'lrt-jabodebek'
   | 'lrt-jabodetabek'
 
+export type DifficultyLevel = 'gampang' | 'agak-sulit' | 'sulit-banget'
+
 export type GameMode = 'name-stops' | 'guess-route' | 'plan-trip'
 
 export type PlayStyle = 'solo' | 'friends'

@@ -24,13 +24,14 @@ import { sound } from '@/lib/sound'
 import type { GameRoom, RoomPlayer } from '@/lib/multiplayer'
 import { cn } from '@/lib/utils'
 import { Check, X, Lightbulb } from 'lucide-react'
-import type { GameResult } from '@/types'
+import type { DifficultyLevel, GameResult } from '@/types'
 
 interface Props {
   rounds: RouteRound[]
   players: RoomPlayer[]
   selfId: string
   room: GameRoom | null
+  difficultyLevel?: DifficultyLevel
   onExit: () => void
   onFinished: (result: GameResult) => void
 }
@@ -47,6 +48,7 @@ export function NameStopsGame({
   players,
   selfId,
   room,
+  difficultyLevel: _difficultyLevel,
   onExit,
   onFinished,
 }: Props) {
@@ -213,7 +215,7 @@ export function NameStopsGame({
         <p className="text-sm tracking-[0.2em] text-white/45 uppercase">Selesai</p>
         <h2 className="font-display text-5xl font-extrabold">{score.toLocaleString('id-ID')}</h2>
         <Button onClick={onExit} className="bg-[var(--tj)] hover:bg-[#094a86]">
-          Kembali
+          Kembali ke menu
         </Button>
       </div>
     )
@@ -360,7 +362,7 @@ export function NameStopsGame({
               onClick={useHint}
             >
               <Lightbulb className="size-4" />
-              {hintUsed ? 'Hint sudah dipakai' : room ? 'Hint hanya solo' : 'Hint (-75% poin)'}
+              {hintUsed ? 'Bantuan sudah dipakai' : room ? 'Bantuan cuma buat solo' : 'Bantuan (-75% poin)'}
             </Button>
           </div>
         )}

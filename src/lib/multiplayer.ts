@@ -12,7 +12,7 @@ export type RoomPlayer = {
 export type RoomMessage =
   | { type: 'hello'; player: RoomPlayer }
   | { type: 'roster'; players: RoomPlayer[] }
-  | { type: 'start'; seed: number; mode: string; difficulty: string }
+  | { type: 'start'; seed: number; mode: string; difficulty: string; difficultyLevel: string }
   | { type: 'guess-stop'; playerId: string; stopId: string; points: number; name: string }
   | { type: 'score-sync'; players: RoomPlayer[] }
   | { type: 'chat'; name: string; text: string }
@@ -31,7 +31,12 @@ export class GameRoom {
   players = new Map<string, RoomPlayer>()
   self: RoomPlayer
   onRoster: (players: RoomPlayer[]) => void = () => {}
-  onStart: (payload: { seed: number; mode: string; difficulty: string }) => void = () => {}
+  onStart: (payload: {
+    seed: number
+    mode: string
+    difficulty: string
+    difficultyLevel: string
+  }) => void = () => {}
   onGuessStop: (payload: {
     playerId: string
     stopId: string
@@ -78,9 +83,9 @@ export class GameRoom {
     return room
   }
 
-  startGame(seed: number, mode: string, difficulty: string) {
+  startGame(seed: number, mode: string, difficulty: string, difficultyLevel: string) {
     if (!this.isHost) return
-    this.socket.emit('start', { seed, mode, difficulty })
+    this.socket.emit('start', { seed, mode, difficulty, difficultyLevel })
   }
 
   sendGuessStop(stopId: string, points: number) {
@@ -143,7 +148,7 @@ function waitConnect(socket: Socket): Promise<void> {
 
 function wireSocket(room: GameRoom, socket: Socket) {
   socket.on('status', ({ message, error }: { message?: string; error?: string }) => {
-    room.onStatus(error ? `Gagal: ${error}` : message || '')
+    room.onStatus(error ? `Belum berhasil: ${error}` : message || '')
   })
 
   socket.on('roster', ({ players }: { players: RoomPlayer[] }) => {
@@ -152,7 +157,7 @@ function wireSocket(room: GameRoom, socket: Socket) {
     room.onRoster(players)
   })
 
-  socket.on('start', (payload: { seed: number; mode: string; difficulty: string }) => {
+  socket.on('start', (payload: { seed: number; mode: string; difficulty: string; difficultyLevel: string }) => {
     room.onStart(payload)
   })
 

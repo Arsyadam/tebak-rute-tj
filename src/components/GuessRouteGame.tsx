@@ -18,7 +18,7 @@ import {
 import { FitRoute } from '@/components/MapHelpers'
 import { RouteBadge } from '@/components/RouteBadge'
 import StatusIndicator from '@/components/8starlabs-ui/status-indicator'
-import type { GameData } from '@/types'
+import type { DifficultyLevel, GameData } from '@/types'
 import { type RouteRound } from '@/lib/game'
 import { sound } from '@/lib/sound'
 import { cn } from '@/lib/utils'
@@ -29,11 +29,18 @@ import type { GameResult, GameRoundRecord } from '@/types'
 interface Props {
   data: GameData
   rounds: RouteRound[]
+  difficultyLevel?: DifficultyLevel
   onExit: () => void
   onFinished: (result: GameResult) => void
 }
 
-export function GuessRouteGame({ data, rounds, onExit, onFinished }: Props) {
+export function GuessRouteGame({
+  data,
+  rounds,
+  difficultyLevel: _difficultyLevel,
+  onExit,
+  onFinished,
+}: Props) {
   const [index, setIndex] = useState(0)
   const [choice, setChoice] = useState<string>('')
   const [phase, setPhase] = useState<'play' | 'reveal' | 'done'>('play')
@@ -90,7 +97,7 @@ export function GuessRouteGame({ data, rounds, onExit, onFinished }: Props) {
         <p className="text-sm tracking-[0.2em] text-white/45 uppercase">Selesai</p>
         <h2 className="font-display text-5xl font-extrabold">{score.toLocaleString('id-ID')}</h2>
         <Button onClick={onExit} className="bg-[var(--tj)] hover:bg-[#094a86]">
-          Kembali
+          Kembali ke menu
         </Button>
       </div>
     )
@@ -165,7 +172,7 @@ export function GuessRouteGame({ data, rounds, onExit, onFinished }: Props) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">
-              Round {index + 1}/{rounds.length}
+              Ronde {index + 1}/{rounds.length}
             </Badge>
             <StatusIndicator
               state={phase === 'reveal' ? (lastOk ? 'active' : 'down') : 'fixing'}
@@ -176,7 +183,7 @@ export function GuessRouteGame({ data, rounds, onExit, onFinished }: Props) {
           <h1 className="mt-1.5 font-display text-xl font-bold leading-tight">
             Jalur ini rute apa?
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">Pilih kode rute dari daftar.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Pilih kode rute yang paling cocok.</p>
         </div>
         <span className="shrink-0 text-sm font-bold tabular-nums">
           {score.toLocaleString('id-ID')}
@@ -224,7 +231,7 @@ export function GuessRouteGame({ data, rounds, onExit, onFinished }: Props) {
             ) : null}
             <Select value={choice} onValueChange={setChoice}>
               <SelectTrigger className="h-11 w-full bg-background">
-                <SelectValue placeholder="Pilih kode rute…" />
+                <SelectValue placeholder="Pilih kode rute" />
               </SelectTrigger>
               <SelectContent className="max-h-72">
                 {availableOptions.map((code) => (
@@ -242,7 +249,7 @@ export function GuessRouteGame({ data, rounds, onExit, onFinished }: Props) {
       <div className="border-t border-border/60 p-4 space-y-2">
         {phase === 'reveal' ? (
           <Button className="h-11 w-full" onClick={finishOrNext} withArrow>
-            {index + 1 >= rounds.length ? 'Lihat skor' : 'Next'}
+            {index + 1 >= rounds.length ? 'Lihat skor' : 'Lanjut'}
           </Button>
         ) : (
           <>
@@ -252,7 +259,7 @@ export function GuessRouteGame({ data, rounds, onExit, onFinished }: Props) {
               onClick={submit}
               withArrow
             >
-              Guess
+              Tebak
             </Button>
             <Button
               variant="outline"
@@ -261,7 +268,7 @@ export function GuessRouteGame({ data, rounds, onExit, onFinished }: Props) {
               onClick={useHint}
             >
               <Lightbulb className="size-4" />
-              {hintUsed ? 'Hint sudah dipakai' : 'Hint (-75% poin)'}
+              {hintUsed ? 'Bantuan sudah dipakai' : 'Bantuan (-75% poin)'}
             </Button>
           </>
         )}

@@ -24,7 +24,7 @@ import Timeline, {
   TimelineItemTitle,
 } from '@/components/8starlabs-ui/timeline'
 import StatusIndicator from '@/components/8starlabs-ui/status-indicator'
-import type { GameData, Route } from '@/types'
+import type { DifficultyLevel, GameData, Route } from '@/types'
 import {
   distractorRoutes,
   distractorStops,
@@ -39,6 +39,7 @@ import type { GameRoundRecord, GameResult } from '@/types'
 interface Props {
   data: GameData
   journeys: Journey[]
+  difficultyLevel?: DifficultyLevel
   onExit: () => void
   onFinished: (result: GameResult) => void
 }
@@ -70,7 +71,13 @@ function findStopByName(data: GameData, name: string) {
   return hit ?? null
 }
 
-export function PlanTripGame({ data, journeys, onExit, onFinished }: Props) {
+export function PlanTripGame({
+  data,
+  journeys,
+  difficultyLevel: _difficultyLevel,
+  onExit,
+  onFinished,
+}: Props) {
   const [index, setIndex] = useState(0)
   const [firstRoute, setFirstRoute] = useState('')
   const [transfer, setTransfer] = useState('')
@@ -187,7 +194,7 @@ export function PlanTripGame({ data, journeys, onExit, onFinished }: Props) {
         <p className="text-sm tracking-[0.2em] text-white/45 uppercase">Selesai</p>
         <h2 className="font-display text-5xl font-extrabold">{score.toLocaleString('id-ID')}</h2>
         <Button onClick={onExit} className="bg-[var(--tj)] hover:bg-[#094a86]">
-          Kembali
+          Kembali ke menu
         </Button>
       </div>
     )
@@ -290,20 +297,20 @@ export function PlanTripGame({ data, journeys, onExit, onFinished }: Props) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">
-              Round {index + 1}/{journeys.length}
+              Ronde {index + 1}/{journeys.length}
             </Badge>
-            <Badge variant="outline">{needsTransfer ? '1x transit' : 'Langsung'}</Badge>
+            <Badge variant="outline">{needsTransfer ? '1x transit' : 'Tanpa transit'}</Badge>
           </div>
           <h1 className="mt-1.5 font-display text-xl font-bold leading-tight">Dari A ke B, naik apa?</h1>
-          <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-sm">
-            <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 font-semibold text-emerald-700">
-              A · {journey.from.name}
-            </span>
-            <ArrowRight className="size-3.5 shrink-0 text-muted-foreground" />
-            <span className="rounded-md bg-rose-50 px-1.5 py-0.5 font-semibold text-rose-700">
-              B · {journey.to.name}
-            </span>
-          </p>
+            <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-sm">
+              <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 font-semibold text-emerald-700">
+                Titik A · {journey.from.name}
+              </span>
+              <ArrowRight className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="rounded-md bg-rose-50 px-1.5 py-0.5 font-semibold text-rose-700">
+                Titik B · {journey.to.name}
+              </span>
+            </p>
         </div>
         <span className="shrink-0 text-sm font-bold tabular-nums">
           {score.toLocaleString('id-ID')}
@@ -321,7 +328,7 @@ export function PlanTripGame({ data, journeys, onExit, onFinished }: Props) {
             <Timeline orientation="vertical" noCards alternating={false} className="w-full">
               {journey.legs.map((leg, i) => (
                 <TimelineItem key={`${leg.routeId}-${i}`} hollow={i > 0}>
-                  <TimelineItemDate>{i === 0 ? 'Naik dulu' : 'Lanjut'}</TimelineItemDate>
+                  <TimelineItemDate>{i === 0 ? 'Naik dulu' : 'Lanjut lagi'}</TimelineItemDate>
                   <TimelineItemTitle>
                     <RouteBadge
                       code={leg.routeCode}
@@ -359,7 +366,7 @@ export function PlanTripGame({ data, journeys, onExit, onFinished }: Props) {
 
             <Field
               label="1. Naik dulu"
-              hint={step === 1 ? 'Pilih rute pertama' : undefined}
+              hint={step === 1 ? 'Pilih rute pertama yang paling cocok' : undefined}
               active={step === 1}
             >
               <Select
@@ -370,7 +377,7 @@ export function PlanTripGame({ data, journeys, onExit, onFinished }: Props) {
                 }}
               >
                 <SelectTrigger className="h-11 w-full bg-background">
-                  <SelectValue placeholder="Pilih kode rute…" />
+                  <SelectValue placeholder="Pilih kode rute" />
                 </SelectTrigger>
                 <SelectContent className="max-h-72">
                   {routeOptions.map((code) => (
@@ -399,7 +406,7 @@ export function PlanTripGame({ data, journeys, onExit, onFinished }: Props) {
                     disabled={!firstRoute}
                   >
                     <SelectTrigger className="h-11 w-full bg-background">
-                      <SelectValue placeholder="Pilih halte transit…" />
+                      <SelectValue placeholder="Pilih halte transit" />
                     </SelectTrigger>
                     <SelectContent className="max-h-72">
                       {transferOptions.map((name) => (
@@ -413,7 +420,7 @@ export function PlanTripGame({ data, journeys, onExit, onFinished }: Props) {
 
                 <Field
                   label="3. Lanjut naik"
-                  hint={!transfer ? 'Isi langkah 2 dulu' : step === 3 ? 'Pilih rute lanjutan' : undefined}
+                  hint={!transfer ? 'Isi langkah 2 dulu' : step === 3 ? 'Pilih rute lanjutan yang paling cocok' : undefined}
                   active={step === 3}
                   locked={!transfer}
                 >
@@ -426,7 +433,7 @@ export function PlanTripGame({ data, journeys, onExit, onFinished }: Props) {
                     disabled={!transfer}
                   >
                     <SelectTrigger className="h-11 w-full bg-background">
-                      <SelectValue placeholder="Pilih kode rute…" />
+                      <SelectValue placeholder="Pilih kode rute" />
                     </SelectTrigger>
                     <SelectContent className="max-h-72">
                       {routeOptions.map((code) => (
@@ -450,7 +457,7 @@ export function PlanTripGame({ data, journeys, onExit, onFinished }: Props) {
       <div className="border-t border-border/60 p-4 space-y-2">
         {phase === 'reveal' ? (
           <Button className="h-11 w-full" onClick={finishOrNext} withArrow>
-            {index + 1 >= journeys.length ? 'Lihat skor' : 'Next'}
+            {index + 1 >= journeys.length ? 'Lihat skor' : 'Lanjut'}
           </Button>
         ) : (
           <>
@@ -460,7 +467,7 @@ export function PlanTripGame({ data, journeys, onExit, onFinished }: Props) {
               onClick={submit}
               withArrow
             >
-              Guess
+              Tebak
             </Button>
             <Button
               variant="outline"
@@ -469,7 +476,7 @@ export function PlanTripGame({ data, journeys, onExit, onFinished }: Props) {
               onClick={useHint}
             >
               <Lightbulb className="size-4" />
-              {hintUsed ? 'Hint sudah dipakai' : 'Hint (-75% poin)'}
+              {hintUsed ? 'Bantuan sudah dipakai' : 'Bantuan (-75% poin)'}
             </Button>
           </>
         )}

@@ -92,14 +92,14 @@ export function createSocketServer(httpServer: HttpServer) {
       broadcastRoster(state, io)
     })
 
-    socket.on('start', ({ seed, mode, difficulty }: { seed: number; mode: string; difficulty: string }) => {
+    socket.on('start', ({ seed, mode, difficulty, difficultyLevel }: { seed: number; mode: string; difficulty: string; difficultyLevel: string }) => {
       const state = findRoomBySocket(socket.id)
       if (!state) return
       const player = state.players.get(socket.id)
       if (!player?.isHost) return
       state.started = true
       state.seed = seed
-      io.to(state.code).emit('start', { seed, mode, difficulty })
+      io.to(state.code).emit('start', { seed, mode, difficulty, difficultyLevel })
     })
 
     socket.on('guess-stop', ({ stopId, points }: { stopId: string; points: number }) => {

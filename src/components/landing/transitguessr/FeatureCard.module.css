@@ -1,0 +1,126 @@
+.container {
+  width: var(--width-519_5);
+  height: 151.4px;
+  flex-shrink: 0;
+  gap: var(--gap-32);
+  text-align: left;
+  font-size: var(--fs-24);
+  color: var(--color-darkslategray-200);
+  font-family: var(--font-inter);
+}
+.container,
+.container2,
+.container3 {
+  overflow: hidden;
+  display: flex;
+  align-items: flex-start;
+}
+.container2 {
+  height: var(--height-56);
+  width: 56px;
+  border-radius: var(--br-20);
+  background: var(--gradient-2);
+  flex-shrink: 0;
+  padding: var(--padding-4);
+  box-sizing: border-box;
+}
+.container3 {
+  flex-direction: column;
+  padding: var(--padding-8) var(--padding-12) 7.8px var(--padding-11);
+}
+.container4,
+.icon {
+  align-self: stretch;
+  height: 32.2px;
+}
+.container4 {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.icon {
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.container5,
+.heading3 {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.container5 {
+  height: 151.4px;
+  flex: 1;
+  overflow: hidden;
+  justify-content: center;
+  gap: var(--gap-4);
+}
+.heading3 {
+  width: var(--width-431_5);
+}
+.yourDataIs {
+  margin: 0;
+  position: relative;
+  font-size: inherit;
+  line-height: var(--lh-30);
+  font-weight: 700;
+  font-family: inherit;
+}
+.paragraph {
+  width: var(--width-431_5);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  font-size: var(--fs-18);
+  font-family: var(--font-lora);
+}
+.weDontLink {
+  width: 432px;
+  position: relative;
+  line-height: var(--lh-28_8);
+  display: inline-block;
+}
+.link {
+  width: 136px;
+  height: 27px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--padding-4) var(--padding-0) var(--padding-3);
+  box-sizing: border-box;
+  position: relative;
+  isolation: isolate;
+  gap: var(--gap-10);
+  font-size: var(--fs-16);
+}
+.privacyAtTransit {
+  position: relative;
+  line-height: 19.2px;
+  z-index: 0;
+  flex-shrink: 0;
+}
+.text {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  margin: 0 !important;
+  top: 0;
+  left: 0;
+  border-bottom: 1.6px solid var(--color-darkslategray-200);
+  box-sizing: border-box;
+  z-index: 1;
+  flex-shrink: 0;
+}
+@media screen and (max-width: 750px) {
+  .container {
+    gap: var(--gap-16);
+  }
+}
+@media screen and (max-width: 450px) {
+  .yourDataIs {
+    font-size: var(--fs-19);
+    line-height: var(--lh-24);
+  }
+}

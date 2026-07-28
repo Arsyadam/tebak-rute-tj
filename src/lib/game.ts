@@ -181,9 +181,9 @@ export const MODE_META: Record<
     tip: 'Multiplayer: siapa duluan nebak dapat poin lebih besar.',
   },
   'guess-route': {
-    title: 'Tebak dari Jalur',
-    blurb: 'Lihat bentuk jalur di peta, pilih kode rutanya.',
-    tip: 'Select jawaban dari daftar rute.',
+    title: 'Tebak dari jalur',
+    blurb: 'Lihat bentuk jalur di peta, lalu pilih kode rutemu.',
+    tip: 'Pilih jawaban dari daftar rute.',
   },
   'plan-trip': {
     title: 'Dari A ke B',

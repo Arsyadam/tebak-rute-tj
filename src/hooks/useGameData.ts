@@ -13,7 +13,7 @@ export function useGameData() {
     let cancelled = false
     fetch('/data/game-data.json')
       .then((r) => {
-        if (!r.ok) throw new Error(`Gagal memuat data (${r.status})`)
+        if (!r.ok) throw new Error(`Belum bisa memuat data (${r.status})`)
         return r.json() as Promise<GameData>
       })
       .then((json) => {
@@ -24,7 +24,7 @@ export function useGameData() {
       })
       .catch((err: unknown) => {
         if (cancelled) return
-        setError(err instanceof Error ? err.message : 'Gagal memuat GTFS')
+        setError(err instanceof Error ? err.message : 'Belum bisa memuat GTFS')
         setLoading(false)
       })
     return () => {

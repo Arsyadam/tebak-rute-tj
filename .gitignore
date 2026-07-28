@@ -31,3 +31,6 @@ data/krl/
 *.njsproj
 *.sln
 *.sw?
+
+# Cursor MCP config (contains secrets)
+.cursor/mcp.json
