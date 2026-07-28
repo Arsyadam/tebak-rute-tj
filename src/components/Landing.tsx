@@ -1,30 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
-import { Map } from '@/components/ui/map'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
-import StatusIndicator from '@/components/8starlabs-ui/status-indicator'
-import { TransportBadge } from '@/components/8starlabs-ui/transport-badge'
-import { RouteBadge } from '@/components/RouteBadge'
 import { AdSlot } from '@/components/AdSlot'
 import TransitGuessrHero from '@/components/landing/transitguessr/TransitGuessrHero'
 import GameStartCard from '@/components/landing/GameStartCard'
 import LeaderboardCard from '@/components/landing/LeaderboardCard'
+import { StartPlayCard, type StartCardStep } from '@/components/landing/StartPlayCard'
+import { ROOM_PIN_LENGTH } from '@/components/landing/RoomPinInput'
 import type { Difficulty, DifficultyLevel, GameData, GameMode, LeaderboardEntry, PlayStyle } from '@/types'
-import { JAKARTA_CENTER, MODE_META } from '@/lib/game'
+import { MODE_META } from '@/lib/game'
 import { loadLeaderboard } from '@/lib/auth'
+import { api } from '@/api/client'
 import { useAuth } from '@/contexts/AuthContext'
 import { sound } from '@/lib/sound'
 import { GameRoom } from '@/lib/multiplayer'
 import type { RoomPlayer } from '@/lib/multiplayer'
-import { Trophy, Users, User, Mail, LogIn } from 'lucide-react'
+import { Trophy } from 'lucide-react'
 
 export type StartPayload = {
   mode: GameMode
@@ -43,12 +32,14 @@ interface Props {
 
 export function Landing({ data, onStart }: Props) {
   const { user, loading: authLoading, loginGuest, loginEmail, registerEmail, logout } = useAuth()
+  const [cardStep, setCardStep] = useState<StartCardStep>('chooser')
   const [authMode, setAuthMode] = useState<'guest' | 'login' | 'register'>('guest')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [authBusy, setAuthBusy] = useState(false)
   const [authError, setAuthError] = useState('')
+  const [pinError, setPinError] = useState<string | null>(null)
 
   const [mode, setMode] = useState<GameMode>('name-stops')
   const [difficulty, setDifficulty] = useState<Difficulty | 'all'>('easy')
@@ -63,6 +54,17 @@ export function Landing({ data, onStart }: Props) {
   const autoJoinRef = useRef(false)
   const joinInFlightRef = useRef(false)
   const authInFlightRef = useRef(false)
+
+  useEffect(() => {
+    if (user) setCardStep('play')
+    else if (cardStep === 'play') setCardStep('chooser')
+  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps -- sync step when auth changes
+
+  useEffect(() => {
+    if (cardStep === 'login') setAuthMode('login')
+    else if (cardStep === 'register') setAuthMode('register')
+    else if (cardStep === 'guest-name') setAuthMode('guest')
+  }, [cardStep])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -247,13 +249,15 @@ export function Landing({ data, onStart }: Props) {
     }
   }
 
-  const joinRoom = async (codeOverride?: string) => {
+  const joinRoom = async (codeOverride?: string): Promise<boolean> => {
     const raw = (codeOverride || roomCode).trim().toUpperCase()
     const code = raw.replace(/[^A-Z0-9]/g, '')
-    if (!user || !code || joinInFlightRef.current || room) return
+    if (!user || !code || joinInFlightRef.current) return false
+    if (room?.code === code) return true
+    if (room) return false
     if (!/^[A-Z0-9]{5}$/.test(code)) {
       setStatus('Kode room harus 5 karakter (A-Z/0-9)')
-      return
+      return false
     }
     joinInFlightRef.current = true
     setBusy(true)
@@ -279,9 +283,11 @@ export function Landing({ data, onStart }: Props) {
       setRoom(r)
       setStatus('Sudah gabung. Menunggu host…')
       sound.join()
+      return true
     } catch (e) {
       autoJoinRef.current = false
       setStatus(safeErrorMessage(e, 'Belum bisa gabung room. Coba lagi, ya.'))
+      return false
     } finally {
       joinInFlightRef.current = false
       setBusy(false)
@@ -312,436 +318,154 @@ export function Landing({ data, onStart }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- join once per auth+deeplink
   }, [user, room, roomCode, busy, authLoading])
 
+  const onPinComplete = async (code: string) => {
+    if (code.length !== ROOM_PIN_LENGTH) return
+    setRoomCode(code)
+    setPlayStyle('friends')
+    setPinError(null)
+    try {
+      await api(`/rooms/${code}`)
+    } catch {
+      setPinError('Kode tidak ditemukan')
+      return
+    }
+    if (!user) {
+      setPinError('Masuk dulu untuk gabung')
+      setCardStep('chooser')
+      return
+    }
+    const ok = await joinRoom(code)
+    if (!ok) setPinError('Kode tidak ditemukan')
+  }
+
   if (authLoading) {
     return (
-      <div className="flex h-full items-center justify-center bg-[#e9ecef] text-[#667085]">
+      <div className="flex h-full items-center justify-center bg-[#ebf4f9] text-[#19483f]">
         Lagi memuat sesi…
       </div>
     )
   }
 
   return (
-    <div className="h-full overflow-auto bg-[#f4f5f7]">
-      <div className="pointer-events-none fixed inset-0">
-          <Map
-            center={JAKARTA_CENTER}
-            zoom={11}
-            className="pointer-events-none h-full w-full opacity-80"
-          />
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#f4f5f7]/90 via-[#f4f5f7]/55 to-[#f4f5f7]" />
-        </div>
+    <div className="h-full overflow-auto bg-[#ebf4f9]">
+      <TransitGuessrHero
+        pinValue={roomCode}
+        pinError={pinError}
+        pinDisabled={busy}
+        onPinChange={(code) => {
+          setRoomCode(code)
+          if (code.length < ROOM_PIN_LENGTH) setPinError(null)
+        }}
+        onPinComplete={(code) => void onPinComplete(code)}
+        onClearPinError={() => setPinError(null)}
+        onLoginClick={() => {
+          setAuthError('')
+          setCardStep(user ? 'play' : 'login')
+        }}
+        onSignUpClick={() => {
+          setAuthError('')
+          setCardStep(user ? 'play' : 'register')
+        }}
+        startCard={
+          <GameStartCard>
+            <StartPlayCard
+              step={user ? 'play' : cardStep}
+              setStep={setCardStep}
+              user={user}
+              routeCount={data.meta.routeCount}
+              stopCount={data.meta.stopCount}
+              authBusy={authBusy}
+              authError={authError}
+              name={name}
+              setName={setName}
+              email={email}
+              setEmail={setEmail}
+              password={password}
+              setPassword={setPassword}
+              submitGuest={() => void submitGuest()}
+              submitEmail={() => void submitEmail()}
+              googleLogin={googleLogin}
+              doLogout={() => void doLogout()}
+              safeUserColor={safeUserColor}
+              playStyle={playStyle}
+              setPlayStyle={setPlayStyle}
+              mode={mode}
+              setMode={setMode}
+              difficulty={difficulty}
+              setDifficulty={setDifficulty}
+              difficultyLevel={difficultyLevel}
+              setDifficultyLevel={setDifficultyLevel}
+              canPlay={canPlay}
+              busy={busy}
+              roomCode={roomCode}
+              setRoomCode={setRoomCode}
+              room={room}
+              players={players}
+              status={status}
+              createRoom={() => void createRoom()}
+              joinRoom={() => void joinRoom()}
+              leaveRoom={() => void leaveRoom()}
+              startSolo={startSolo}
+              startFriends={startFriends}
+            />
+          </GameStartCard>
+        }
+      />
 
-      <TransitGuessrHero startCard={<GameStartCard>
-          <section className="flex flex-col">
-            <p className="mt-3 max-w-lg text-sm text-muted-foreground sm:text-base">
-              Data GTFS Transjakarta, KRL, MRT, dan LRT Jabodebek / Jabodetabek. Warna jalur sesuai aslinya.
-            </p>
-            <div className="mt-3 flex flex-wrap items-center gap-1.5">
-              <RouteBadge code="1" color="#D01C2A" agency="tj" size="sm" />
-              <RouteBadge code="9" color="#E87722" agency="tj" size="sm" />
-              <TransportBadge system="JK" stationCode={['RED', 'BLU', 'GRN', 'BRN', 'PNK']} size="sm" />
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              {data.meta.routeCount} rute · {data.meta.stopCount} halte
-            </p>
-
-            {!user ? (
-              <Card className="mt-6 border-black/8 bg-white/90 shadow-lg backdrop-blur">
-                <CardHeader>
-                  <CardTitle className="font-display">Masuk dulu</CardTitle>
-                  <CardDescription>Pilih cara masuk: guest, email, atau Google.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Tabs value={authMode} onValueChange={(v) => setAuthMode(v as typeof authMode)}>
-                    <TabsList className="w-full">
-                      <TabsTrigger value="guest" className="gap-1.5">
-                        <User className="size-3.5" /> Guest
-                      </TabsTrigger>
-                      <TabsTrigger value="login" className="gap-1.5">
-                        <LogIn className="size-3.5" /> Login
-                      </TabsTrigger>
-                      <TabsTrigger value="register" className="gap-1.5">
-                        <Mail className="size-3.5" /> Daftar
-                      </TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="guest" className="mt-4 space-y-3">
-                      <Input
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="Nama panggilan"
-                        autoComplete="nickname"
-                        onKeyDown={(e) => e.key === 'Enter' && submitGuest()}
-                      />
-                      <Button className="w-full bg-primary" onClick={submitGuest} disabled={authBusy}>
-                        Lanjut sebagai guest
-                      </Button>
-                    </TabsContent>
-
-                    <TabsContent value="login" className="mt-4 space-y-3">
-                      <Input
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="Email"
-                        autoComplete="email"
-                        onKeyDown={(e) => e.key === 'Enter' && submitEmail()}
-                      />
-                      <Input
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Password"
-                        autoComplete="current-password"
-                        onKeyDown={(e) => e.key === 'Enter' && submitEmail()}
-                      />
-                      <Button className="w-full bg-primary" onClick={submitEmail} disabled={authBusy}>
-                        Masuk
-                      </Button>
-                    </TabsContent>
-
-                    <TabsContent value="register" className="mt-4 space-y-3">
-                      <Input
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="Nama"
-                        autoComplete="nickname"
-                        onKeyDown={(e) => e.key === 'Enter' && submitEmail()}
-                      />
-                      <Input
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="Email"
-                        autoComplete="email"
-                        onKeyDown={(e) => e.key === 'Enter' && submitEmail()}
-                      />
-                      <Input
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Password"
-                        autoComplete="new-password"
-                        onKeyDown={(e) => e.key === 'Enter' && submitEmail()}
-                      />
-                      <Button className="w-full bg-primary" onClick={submitEmail} disabled={authBusy}>
-                        Buat akun
-                      </Button>
-                    </TabsContent>
-                  </Tabs>
-
-                  <div className="relative my-4">
-                    <Separator />
-                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-xs text-muted-foreground">
-                      atau
-                    </span>
-                  </div>
-
-                  <Button variant="outline" className="w-full" onClick={googleLogin} disabled={authBusy}>
-                    Lanjut dengan Google
-                  </Button>
-
-                  {authError ? <p className="text-sm text-rose-500">{authError}</p> : null}
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="mt-6 flex items-center gap-3 rounded-2xl border border-black/8 bg-white/90 px-4 py-3 shadow backdrop-blur">
-                <Avatar>
-                  <AvatarFallback style={{ background: safeUserColor(user.color) }} className="text-white">
-                    {user.name.slice(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold">{user.name}</p>
-                  <p className="text-xs text-[#667085]">
-                    {user.isGuest ? 'Guest' : user.email || 'Akun tersimpan'}
-                  </p>
-                </div>
-                <Button variant="ghost" onClick={doLogout}>
-                  Ganti
-                </Button>
-              </div>
-            )}
-
-            <Tabs
-              value={playStyle}
-              onValueChange={(v) => setPlayStyle(v as PlayStyle)}
-              className="mt-5"
-            >
-              <TabsList>
-                <TabsTrigger value="solo" className="gap-1.5">
-                  <User className="size-3.5" /> Solo
-                </TabsTrigger>
-                <TabsTrigger value="friends" className="gap-1.5">
-                  <Users className="size-3.5" /> Bareng teman
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="solo" className="mt-4 space-y-4">
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Mode</Label>
-                  <Select value={mode} onValueChange={(v) => setMode(v as GameMode)} disabled={!canPlay}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(Object.keys(MODE_META) as GameMode[]).map((m) => (
-                        <SelectItem key={m} value={m}>
-                          {MODE_META[m]?.title ?? m}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Moda</Label>
-                  <Select
-                    value={difficulty}
-                    onValueChange={(v) => setDifficulty(v as Difficulty | 'all')}
-                    disabled={!canPlay}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(
-                        [
-                          ['easy', 'BRT'],
-                          ['medium', 'Integrasi'],
-                          ['hard', 'Mikrotrans'],
-                          ['krl', 'KRL'],
-                          ['mrt', 'MRT'],
-                          ['lrt-jabodebek', 'LRT Jabodebek'],
-                          ['lrt-jabodetabek', 'LRT Jabodetabek'],
-                          ['all', 'Semua'],
-                        ] as const
-                      ).map(([value, label]) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Difficulty</Label>
-                  <Select
-                    value={difficultyLevel}
-                    onValueChange={(v) => setDifficultyLevel(v as typeof difficultyLevel)}
-                    disabled={!canPlay}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="gampang">Gampang</SelectItem>
-                      <SelectItem value="agak-sulit">Agak Sulit</SelectItem>
-                      <SelectItem value="sulit-banget">Sulit Banget</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button
-                  size="lg"
-                  disabled={!canPlay}
-                  className="h-12 w-full text-base font-bold"
-                  onClick={startSolo}
-                >
-                  Mulai solo
-                </Button>
-              </TabsContent>
-
-              <TabsContent value="friends" className="mt-4 space-y-4">
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Mode</Label>
-                  <Select value={mode} onValueChange={(v) => setMode(v as GameMode)} disabled={!canPlay}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(Object.keys(MODE_META) as GameMode[]).map((m) => (
-                        <SelectItem key={m} value={m}>
-                          {MODE_META[m]?.title ?? m}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Moda</Label>
-                  <Select
-                    value={difficulty}
-                    onValueChange={(v) => setDifficulty(v as Difficulty | 'all')}
-                    disabled={!canPlay}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(
-                        [
-                          ['easy', 'BRT'],
-                          ['medium', 'Integrasi'],
-                          ['hard', 'Mikrotrans'],
-                          ['krl', 'KRL'],
-                          ['mrt', 'MRT'],
-                          ['lrt-jabodebek', 'LRT Jabodebek'],
-                          ['lrt-jabodetabek', 'LRT Jabodetabek'],
-                          ['all', 'Semua'],
-                        ] as const
-                      ).map(([value, label]) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Difficulty</Label>
-                  <Select
-                    value={difficultyLevel}
-                    onValueChange={(v) => setDifficultyLevel(v as typeof difficultyLevel)}
-                    disabled={!canPlay}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="gampang">Gampang</SelectItem>
-                      <SelectItem value="agak-sulit">Agak Sulit</SelectItem>
-                      <SelectItem value="sulit-banget">Sulit Banget</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Button disabled={!canPlay || busy} onClick={createRoom}>
-                    Buat room
-                  </Button>
-                  <div className="flex gap-2">
-                    <Input
-                      value={roomCode}
-                      onChange={(e) =>
-                        setRoomCode(
-                          e.target.value
-                            .toUpperCase()
-                            .replace(/[^A-Z0-9]/g, '')
-                            .slice(0, 5),
-                        )
-                      }
-                      placeholder="Kode room"
-                      className="tracking-widest"
-                      maxLength={5}
-                      autoComplete="off"
-                    />
-                    <Button disabled={!canPlay || busy} variant="secondary" onClick={() => void joinRoom()}>
-                      Gabung
-                    </Button>
-                  </div>
-                </div>
-                {status ? (
-                  <StatusIndicator
-                    state={busy ? 'fixing' : room ? 'active' : 'idle'}
-                    label={status}
-                    size="sm"
-                  />
-                ) : null}
-                {room?.isHost ? (
-                  <div className="rounded-xl border border-black/8 bg-white/90 p-3 text-sm">
-                    <p className="mb-1.5 text-xs text-muted-foreground">Bagikan link room:</p>
-                    <div className="flex gap-2">
-                      <Input
-                        value={`${window.location.origin}/?room=${room.code}`}
-                        readOnly
-                        className="h-9 text-xs"
-                      />
-                      <Button
-                        variant="secondary"
-                        className="h-9"
-                        onClick={() => navigator.clipboard.writeText(`${window.location.origin}/?room=${room.code}`)}
-                      >
-                        Salin
-                      </Button>
-                    </div>
-                  </div>
-                ) : null}
-                <Separator className="my-1" />
-                {players.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {players.map((p) => (
-                      <Badge key={p.id} variant="secondary" className="gap-1.5">
-                        <span className="size-2 rounded-full" style={{ background: p.color }} />
-                        {p.name}
-                      </Badge>
-                    ))}
-                  </div>
-                ) : null}
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Button
-                    size="lg"
-                    disabled={!canPlay || !room || !room.isHost}
-                    className="h-12 w-full text-base font-bold"
-                    onClick={startFriends}
-                  >
-                    {room?.isHost ? 'Mulai race' : 'Menunggu host…'}
-                  </Button>
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    disabled={!room}
-                    className="h-12 w-full text-base font-bold"
-                    onClick={() => void leaveRoom()}
-                  >
-                    Keluar room
-                  </Button>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </section>
-        </GameStartCard>}
-        sideCard={<LeaderboardCard>
+      <section className="relative z-20 mx-auto mt-10 w-full max-w-[1120px] px-4 pb-16 pt-6 sm:mt-14 sm:px-5 sm:pt-8">
+        <LeaderboardCard>
           <aside className="space-y-4">
-            <Card className="border-black/8 bg-white/90 shadow-lg backdrop-blur">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 font-display text-lg">
-                  <Trophy className="size-4 text-amber-500" /> Leaderboard
-                </CardTitle>
-                <CardDescription>Skor terbaik global</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-72 pr-3">
-                  {leaderboard.length === 0 ? (
-                    <p className="text-sm text-[#667085]">Belum ada skor. Main dulu, yuk.</p>
-                  ) : (
-                    <ul className="space-y-2">
-                      {leaderboard.slice(0, 15).map((e, i) => (
-                        <li
-                          key={e.id}
-                          className="flex items-center gap-2 rounded-lg bg-[#f4f5f7] px-2.5 py-2"
-                        >
-                          <span className="w-5 text-xs text-[#98a2b3]">{i + 1}</span>
-                          <span className="size-2.5 rounded-full" style={{ background: e.color }} />
-                          <span className="min-w-0 flex-1 truncate text-sm">{e.name}</span>
-                          <span className="text-xs text-[#98a2b3]">
-                            {MODE_META[e.mode]?.title ?? e.mode}
-                          </span>
-                          <span className="text-sm font-bold tabular-nums">
-                            {e.score.toLocaleString('id-ID')}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </ScrollArea>
-              </CardContent>
-            </Card>
+            <div className="rounded-[32px] border border-[rgba(18,69,43,0.10)] bg-white p-6 shadow-[0_18px_40px_rgba(17,24,39,0.10)] sm:p-8">
+              <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h2 className="font-display flex items-center gap-2 text-2xl font-bold text-[#003324]">
+                    <Trophy className="size-5 text-[#f9a01b]" />
+                    Leaderboard
+                  </h2>
+                  <p className="mt-1 text-sm font-semibold text-[#19483f]/75">Skor terbaik global</p>
+                </div>
+                <p className="text-xs font-semibold text-[#19483f]/55">
+                  {data.meta.routeCount} rute {data.meta.stopCount} halte
+                </p>
+              </div>
+              <div className="max-h-80 overflow-auto pr-1">
+                {leaderboard.length === 0 ? (
+                  <div className="rounded-[24px] bg-[#ffeee6] px-5 py-10 text-center">
+                    <p className="font-display text-lg font-bold text-[#003324]">Belum ada skor</p>
+                    <p className="mt-1 text-sm font-semibold text-[#19483f]/75">Main dulu, yuk - biar namamu muncul di sini.</p>
+                  </div>
+                ) : (
+                  <ul className="space-y-2.5">
+                    {leaderboard.slice(0, 15).map((e, i) => (
+                      <li
+                        key={e.id}
+                        className="flex items-center gap-3 rounded-[20px] bg-[#ffeee6] px-3.5 py-3"
+                      >
+                        <span className="flex size-8 items-center justify-center rounded-full bg-white text-sm font-extrabold text-[#108043] shadow-sm">
+                          {i + 1}
+                        </span>
+                        <span className="size-2.5 rounded-full" style={{ background: e.color }} />
+                        <span className="min-w-0 flex-1 truncate text-sm font-bold text-[#003324]">{e.name}</span>
+                        <span className="hidden text-xs font-semibold text-[#19483f]/70 sm:inline">
+                          {MODE_META[e.mode]?.title ?? e.mode}
+                        </span>
+                        <span className="text-sm font-extrabold tabular-nums text-[#108043]">
+                          {e.score.toLocaleString('id-ID')}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
             <AdSlot
               slot="landing-sidebar"
               format="auto"
-              className="min-h-[100px] rounded-xl border border-black/8 bg-white/90 p-2 shadow-lg backdrop-blur"
+              className="min-h-[100px] rounded-[28px] border border-[rgba(18,69,43,0.10)] bg-white p-3 shadow-[0_18px_40px_rgba(17,24,39,0.08)]"
             />
           </aside>
-        </LeaderboardCard>}
-      />
+        </LeaderboardCard>
+      </section>
     </div>
   )
 }

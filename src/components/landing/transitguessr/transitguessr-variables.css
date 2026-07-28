@@ -1,8 +1,21 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,600;0,700&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;1,500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Rubik:ital,wght@0,400;0,500;0,600;0,700;0,800;1,700;1,800&display=swap");
 
 :root {
-  /* Common Style Variables */
+  /* TransitGuessr design tokens (see .claude/DESIGN.md) */
+  --tg-primary: #108043;
+  --tg-primary-dark: #12452b;
+  --tg-accent: #f9a01b;
+  --tg-bg: #ebf4f9;
+  --tg-bg-warm: #ffeee6;
+  --tg-surface: #ffffff;
+  --tg-text: #003324;
+  --tg-text-muted: #19483f;
+  --tg-border: rgba(18, 69, 43, 0.12);
+  --tg-shadow-card: 0 18px 40px rgba(17, 24, 39, 0.1);
+  --tg-radius-lg: 24px;
+  --tg-radius-xl: 32px;
+  --tg-font-display: 'Rubik', system-ui, sans-serif;
+  --tg-font-body: 'Rubik', system-ui, sans-serif;
 
   /* Color */
   --color-bisque: #ffdecc;
@@ -81,8 +94,10 @@
   --br-80: 80px;
 
   /* Font */
-  --font-inter: Inter, Arial, sans-serif;
-  --font-lora: Lora, Arial, sans-serif;
+  --font-inter: 'Rubik', system-ui, sans-serif;
+  --font-lora: 'Rubik', system-ui, sans-serif;
+  --font-display: var(--tg-font-display);
+  --font-body: var(--tg-font-body);
 
   /* FontSize */
   --fs-10: 10px;
