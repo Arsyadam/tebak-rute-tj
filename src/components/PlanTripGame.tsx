@@ -30,8 +30,7 @@ import {
 } from '@/lib/journey'
 import { sound } from '@/lib/sound'
 import { cn } from '@/lib/utils'
-import { HINT_PENALTY } from '@/lib/game'
-import { ArrowRight, Lightbulb, LogOut } from 'lucide-react'
+import { ArrowRight, LogOut } from 'lucide-react'
 import type { GameRoundRecord, GameResult } from '@/types'
 import { GameHudShell, HudBlock, gameHud } from '@/components/game/GameHud'
 
@@ -84,7 +83,6 @@ export function PlanTripGame({
   const [phase, setPhase] = useState<'play' | 'reveal' | 'done'>('play')
   const [score, setScore] = useState(0)
   const [lastOk, setLastOk] = useState(false)
-  const [hintUsed, setHintUsed] = useState(false)
   const scoreRef = useRef(0)
   const roundsRef = useRef<GameRoundRecord[]>([])
 
@@ -215,10 +213,6 @@ export function PlanTripGame({
       ok = okFirst && okTransfer && okSecond
     }
 
-    if (hintUsed) {
-      points = Math.floor(points * HINT_PENALTY)
-    }
-
     const correctAnswer = needsTransfer
       ? `${leg1.routeCode} → ${journey.transferName ?? ''} → ${journey.legs[1]?.routeCode ?? ''}`
       : leg1.routeCode
@@ -227,7 +221,7 @@ export function PlanTripGame({
       roundIndex: index,
       correctAnswer,
       score: points,
-      hintUsed,
+      hintUsed: false,
     })
 
     setLastOk(ok)
@@ -241,28 +235,13 @@ export function PlanTripGame({
     setPhase('reveal')
   }
 
-  const useHint = () => {
-    if (phase !== 'play' || hintUsed) return
-    const leg1 = journey.legs[0]!
-    if (!firstRoute) {
-      setFirstRoute(leg1.routeCode)
-    } else if (needsTransfer && !transfer) {
-      setTransfer(journey.transferName || '')
-    } else if (needsTransfer && !secondRoute) {
-      setTransfer(journey.transferName || '')
-      setSecondRoute(journey.legs[1]?.routeCode || '')
-    }
-    setHintUsed(true)
-    sound.click()
-  }
-
   const finishOrNext = () => {
     if (index + 1 >= journeys.length) {
       setPhase('done')
       sound.win()
       onFinished({
         score: scoreRef.current,
-        hintCount: roundsRef.current.filter((r) => r.hintUsed).length,
+        hintCount: 0,
         rounds: roundsRef.current,
       })
       return
@@ -271,7 +250,6 @@ export function PlanTripGame({
     setFirstRoute('')
     setTransfer('')
     setSecondRoute('')
-    setHintUsed(false)
     setPhase('play')
     sound.click()
   }
@@ -283,21 +261,21 @@ export function PlanTripGame({
 
   const answerPanel = (
     <div className={cn(gameHud.panel, 'flex max-h-[min(70vh,36rem)] w-[min(100%,24rem)] flex-col overflow-hidden')}>
-      <div className="shrink-0 space-y-2 border-b border-white/15 p-3.5 sm:p-4">
-        <div className="flex items-start gap-3">
-          <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-white font-display text-xl font-bold tabular-nums text-[#003324]">
-            {index + 1}
-          </div>
+      <div className="shrink-0 space-y-2 border-b border-[rgba(18,69,43,0.12)] p-3.5 sm:p-4">
+        <div className="flex items-center gap-3">
+          <div className={gameHud.badge}>{index + 1}</div>
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-bold uppercase tracking-wide text-white/70">
+            <p className={cn('text-[11px] font-bold uppercase tracking-wide', gameHud.muted)}>
               Ronde {index + 1}/{journeys.length} · {needsTransfer ? '1x transit' : 'Direct'}
             </p>
-            <h1 className="font-display text-lg font-bold leading-tight sm:text-xl">Dari A ke B, naik apa?</h1>
+            <h1 className="font-display text-lg font-bold leading-tight text-[#003324] sm:text-xl">
+              Dari A ke B, naik apa?
+            </h1>
           </div>
         </div>
         <p className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
           <span className="rounded-full bg-[#108043] px-2 py-0.5 text-white">A · {journey.from.name}</span>
-          <ArrowRight className="size-3.5 shrink-0 text-white/70" />
+          <ArrowRight className={cn('size-3.5 shrink-0', gameHud.muted)} />
           <span className="rounded-full bg-[#F9A01B] px-2 py-0.5 text-[#003324]">B · {journey.to.name}</span>
         </p>
       </div>
@@ -305,10 +283,10 @@ export function PlanTripGame({
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3.5 sm:p-4">
         {phase === 'reveal' ? (
           <div className="space-y-3">
-            <p className={cn('font-display text-xl font-bold', lastOk ? 'text-[#3FB971]' : 'text-rose-300')}>
+            <p className={cn('font-display text-xl font-bold', lastOk ? 'text-[#108043]' : 'text-rose-500')}>
               {lastOk ? 'Benar!' : 'Belum tepat'}
             </p>
-            <Timeline orientation="vertical" noCards alternating={false} className="w-full text-white">
+            <Timeline orientation="vertical" noCards alternating={false} className="w-full text-[#003324]">
               {journey.legs.map((leg, i) => (
                 <TimelineItem key={`${leg.routeId}-${i}`} hollow={i > 0}>
                   <TimelineItemDate>{i === 0 ? 'Naik dulu' : 'Lanjut lagi'}</TimelineItemDate>
@@ -333,7 +311,7 @@ export function PlanTripGame({
           </div>
         ) : (
           <div className="space-y-3">
-            <p className="text-xs font-medium leading-relaxed text-white/75">
+            <p className={cn('text-xs font-medium leading-relaxed', gameHud.muted)}>
               Jawab berurutan. Pilih opsi, jalur preview muncul di peta.
             </p>
 
@@ -419,7 +397,7 @@ export function PlanTripGame({
                 </Field>
               </>
             ) : (
-              <p className="rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold text-white/80">
+              <p className={cn('rounded-xl bg-[#EBF4F9] px-3 py-2 text-xs font-semibold', gameHud.muted)}>
                 Perjalanan langsung - tanpa transit.
               </p>
             )}
@@ -427,26 +405,15 @@ export function PlanTripGame({
         )}
       </div>
 
-      <div className="shrink-0 space-y-2 border-t border-white/15 p-3">
+      <div className="shrink-0 border-t border-[rgba(18,69,43,0.12)] p-3">
         {phase === 'reveal' ? (
           <Button className={cn(gameHud.cta, 'w-full')} onClick={finishOrNext}>
             {index + 1 >= journeys.length ? 'Lihat skor' : 'Lanjut'}
           </Button>
         ) : (
-          <>
-            <Button className={cn(gameHud.cta, 'w-full')} disabled={!canSubmit} onClick={submit}>
-              Tebak
-            </Button>
-            <Button
-              variant="ghost"
-              className="h-9 w-full gap-2 rounded-full text-xs font-bold text-white/85 hover:bg-white/10 hover:text-white"
-              disabled={hintUsed}
-              onClick={useHint}
-            >
-              <Lightbulb className="size-3.5 text-[#F9A01B]" />
-              {hintUsed ? 'Bantuan sudah dipakai' : 'Bantuan (-75% poin)'}
-            </Button>
-          </>
+          <Button className={cn(gameHud.cta, 'w-full')} disabled={!canSubmit} onClick={submit}>
+            Tebak
+          </Button>
         )}
       </div>
     </div>
@@ -502,9 +469,11 @@ export function PlanTripGame({
       <GameHudShell>
         <div className="flex items-start justify-between gap-3">
           <HudBlock>{answerPanel}</HudBlock>
-          <div className="flex flex-col items-end gap-2">
+          <div className="flex items-center gap-2">
             <HudBlock className={cn(gameHud.pill, 'min-w-[5rem] tabular-nums')}>
-              <span className="mr-1 text-[10px] font-bold uppercase tracking-wide text-white/70">Poin</span>
+              <span className={cn('mr-1 text-[10px] font-bold uppercase tracking-wide', gameHud.muted)}>
+                Poin
+              </span>
               {score.toLocaleString('id-ID')}
             </HudBlock>
             <HudBlock>
@@ -537,13 +506,13 @@ function Field({
     <div
       className={cn(
         'space-y-1.5 rounded-2xl border p-2.5 transition',
-        active ? 'border-[#F9A01B]/55 bg-white/10' : 'border-white/10 bg-white/5',
+        active ? 'border-[#F9A01B] bg-[#FFF6E8]' : 'border-[rgba(18,69,43,0.12)] bg-[#EBF4F9]',
         locked && 'opacity-45',
       )}
     >
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-xs font-bold tracking-wide text-white/80 uppercase">{label}</span>
-        {hint ? <span className="text-[11px] font-semibold text-[#F9A01B]">{hint}</span> : null}
+        <span className="text-xs font-bold tracking-wide text-[#003324] uppercase">{label}</span>
+        {hint ? <span className="text-[11px] font-semibold text-[#FF6B00]">{hint}</span> : null}
       </div>
       {children}
     </div>

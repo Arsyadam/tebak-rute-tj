@@ -14,9 +14,9 @@ import { matchStopName, racePoints, type RouteRound, HINT_PENALTY } from '@/lib/
 import { sound } from '@/lib/sound'
 import type { GameRoom, RoomPlayer } from '@/lib/multiplayer'
 import { cn } from '@/lib/utils'
-import { Check, Lightbulb, LogOut } from 'lucide-react'
+import { Check, LogOut } from 'lucide-react'
 import type { DifficultyLevel, GameResult } from '@/types'
-import { GameHudShell, HudBlock, gameHud } from '@/components/game/GameHud'
+import { GameHudShell, HudBlock, HudTopBar, gameHud } from '@/components/game/GameHud'
 
 interface Props {
   rounds: RouteRound[]
@@ -205,21 +205,6 @@ export function NameStopsGame({
     sound.click()
   }
 
-  const useHint = () => {
-    if (room || hintUsed || allDone) return
-    const remainingStops = round.stops.filter((s) => !guessed.has(s.id))
-    if (remainingStops.length === 0) return
-    const stop = remainingStops[Math.floor(Math.random() * remainingStops.length)]
-    if (!stop) return
-    claimedRef.current.add(stop.id)
-    setGuessed(new Set(claimedRef.current))
-    setFocusStopId(stop.id)
-    setFlyNonce((n) => n + 1)
-    setHintUsed(true)
-    roundScoresRef.current[roundIndex].hintUsed = true
-    sound.click()
-  }
-
   if (done) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 bg-[#ebf4f9] text-[#003324]">
@@ -290,137 +275,132 @@ export function NameStopsGame({
       </Map>
 
       <GameHudShell>
-        <div className="flex items-start justify-between gap-3">
-          <HudBlock className={cn(gameHud.panel, 'w-[min(100%,22rem)] p-3.5 sm:p-4')}>
-            <div className="flex items-start gap-3">
-              <div
-                className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-white font-display text-xl font-bold tabular-nums text-[#003324] sm:size-14 sm:text-2xl"
-                style={{ boxShadow: `inset 0 0 0 3px ${routeColor}` }}
-              >
-                {round.route.code.length <= 3 ? round.route.code : roundIndex + 1}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-white/70">
-                  Ronde {roundIndex + 1}/{rounds.length}
-                </p>
-                <h1 className="font-display text-lg font-bold leading-tight sm:text-xl">
-                  Ada halte apa saja di rute ini?
-                </h1>
-                <p className="mt-0.5 truncate text-xs font-semibold text-white/75">{round.route.name}</p>
-              </div>
-            </div>
-
-            <div className="mt-3 rounded-2xl bg-white/10 p-2.5">
-              <div className="mb-1.5 flex items-center justify-between text-xs font-bold">
-                <span className="text-white/90">
-                  {guessed.size} / {round.stops.length} halte ketemu
-                </span>
-                <span className={gameHud.accent}>{foundPct}%</span>
-              </div>
-              <div className="h-2.5 overflow-hidden rounded-full bg-white/15">
+        <HudTopBar
+          left={
+            <HudBlock className={cn(gameHud.panel, 'w-[min(100%,22rem)] p-3.5 sm:p-4')}>
+              <div className="flex items-center gap-3">
                 <div
-                  className="h-full rounded-full bg-[#108043] transition-[width] duration-300 ease-out"
-                  style={{ width: `${foundPct}%`, background: routeColor }}
-                />
+                  className={gameHud.badge}
+                  style={{ boxShadow: `inset 0 0 0 3px ${routeColor}` }}
+                >
+                  {round.route.code.length <= 3 ? round.route.code : roundIndex + 1}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className={cn('text-[11px] font-bold uppercase tracking-wide', gameHud.muted)}>
+                    Ronde {roundIndex + 1}/{rounds.length}
+                  </p>
+                  <h1 className="font-display text-lg font-bold leading-tight text-[#003324] sm:text-xl">
+                    Ada halte apa saja di rute ini?
+                  </h1>
+                  <p className={cn('mt-0.5 truncate text-xs font-semibold', gameHud.muted)}>
+                    {round.route.name}
+                  </p>
+                </div>
               </div>
-              <div className="mt-1.5 flex justify-between text-[11px] font-semibold text-white/75">
-                <span>Ketemu {guessed.size}</span>
-                <span>Sisa {round.stops.length - guessed.size}</span>
+
+              <div className={cn('mt-3', gameHud.softWell)}>
+                <div className="mb-1.5 flex items-center justify-between text-xs font-bold">
+                  <span>
+                    {guessed.size} / {round.stops.length} halte ketemu
+                  </span>
+                  <span className={gameHud.accent}>{foundPct}%</span>
+                </div>
+                <div className={gameHud.progressTrack}>
+                  <div
+                    className="h-full rounded-full bg-[#F9A01B] transition-[width] duration-300 ease-out"
+                    style={{ width: `${foundPct}%` }}
+                  />
+                </div>
+                <div className={cn('mt-1.5 flex justify-between text-[11px] font-semibold', gameHud.muted)}>
+                  <span>Ketemu {guessed.size}</span>
+                  <span>Sisa {round.stops.length - guessed.size}</span>
+                </div>
               </div>
+
+              {players.length > 1 ? (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {players
+                    .slice()
+                    .sort((a, b) => b.score - a.score)
+                    .map((p) => (
+                      <span
+                        key={p.id}
+                        className={cn(
+                          'inline-flex items-center gap-1.5 rounded-full bg-[#EBF4F9] px-2 py-1 text-[11px] font-bold',
+                          p.id === selfId && 'ring-2 ring-[#F9A01B]',
+                        )}
+                      >
+                        <span className="size-1.5 rounded-full" style={{ background: p.color }} />
+                        <span className="max-w-[6rem] truncate">{p.name}</span>
+                        <span className={cn('tabular-nums', gameHud.muted)}>{p.score}</span>
+                      </span>
+                    ))}
+                </div>
+              ) : null}
+
+              {foundStops.length > 0 ? (
+                <p className="mt-3 line-clamp-2 text-xs font-semibold leading-relaxed text-[#003324]">
+                  {foundStops.map((s) => s.name).join(', ')}
+                </p>
+              ) : (
+                <p className={cn('mt-3 text-xs font-medium', gameHud.muted)}>
+                  Ketik nama halte di bawah. Zoom/geser peta kalau jalur kurang kebaca.
+                </p>
+              )}
+            </HudBlock>
+          }
+          center={
+            <HudBlock className={gameHud.timer}>{formatElapsed(elapsedMs)}</HudBlock>
+          }
+          right={
+            <div className="flex items-center gap-2">
+              <HudBlock className={cn(gameHud.pill, 'min-w-[5rem] tabular-nums')}>
+                <span className={cn('mr-1 text-[10px] font-bold uppercase tracking-wide', gameHud.muted)}>
+                  Poin
+                </span>
+                {score.toLocaleString('id-ID')}
+              </HudBlock>
+              <HudBlock>
+                <Button
+                  size="icon"
+                  aria-label="Keluar"
+                  title="Keluar"
+                  className={gameHud.iconBtn}
+                  onClick={onExit}
+                >
+                  <LogOut className="size-5" />
+                </Button>
+              </HudBlock>
             </div>
+          }
+        />
 
-            {players.length > 1 ? (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {players
-                  .slice()
-                  .sort((a, b) => b.score - a.score)
-                  .map((p) => (
-                    <span
-                      key={p.id}
-                      className={cn(
-                        'inline-flex items-center gap-1.5 rounded-full bg-white/12 px-2 py-1 text-[11px] font-bold',
-                        p.id === selfId && 'ring-1 ring-[#F9A01B]',
-                      )}
-                    >
-                      <span className="size-1.5 rounded-full" style={{ background: p.color }} />
-                      <span className="max-w-[6rem] truncate">{p.name}</span>
-                      <span className="tabular-nums text-white/80">{p.score}</span>
-                    </span>
-                  ))}
-              </div>
-            ) : null}
-
-            {foundStops.length > 0 ? (
-              <p className="mt-3 line-clamp-2 text-xs font-semibold leading-relaxed text-white/90">
-                {foundStops.map((s) => s.name).join(', ')}
-              </p>
-            ) : (
-              <p className="mt-3 text-xs font-medium text-white/70">
-                Ketik nama halte di bawah. Zoom/geser peta kalau jalur kurang kebaca.
-              </p>
-            )}
-          </HudBlock>
-
-          <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-start">
-            <HudBlock className={cn(gameHud.pill, 'min-w-[4.5rem] tabular-nums')}>
-              {formatElapsed(elapsedMs)}
-            </HudBlock>
-            <HudBlock className={cn(gameHud.pill, 'min-w-[5rem] tabular-nums')}>
-              <span className="mr-1 text-[10px] font-bold uppercase tracking-wide text-white/70">Poin</span>
-              {score.toLocaleString('id-ID')}
-            </HudBlock>
-          </div>
-        </div>
-
-        <div className="flex items-end justify-between gap-3">
+        <div className="flex justify-center">
           <HudBlock className={cn(gameHud.panel, 'w-[min(100%,28rem)] p-3')}>
             {allDone ? (
               <div className="space-y-2">
-                <p className="text-sm font-bold text-white">Semua halte ketemu!</p>
+                <p className="text-sm font-bold text-[#003324]">Semua halte ketemu!</p>
                 <Button className={cn(gameHud.cta, 'w-full')} onClick={nextRound}>
                   {roundIndex + 1 >= rounds.length ? 'Lihat skor' : 'Rute berikutnya'}
                 </Button>
               </div>
             ) : (
-              <div className="space-y-2">
-                <form onSubmit={submit} className="flex gap-2">
-                  <Input
-                    ref={inputRef}
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    placeholder="Ketik nama halte…"
-                    className={cn(gameHud.input, 'flex-1', flash === 'bad' && 'border-rose-400')}
-                    autoComplete="off"
-                    autoFocus
-                    aria-invalid={flash === 'bad' || undefined}
-                  />
-                  <Button type="submit" className={gameHud.cta}>
-                    Tebak
-                  </Button>
-                </form>
-                <Button
-                  variant="ghost"
-                  className="h-9 w-full gap-2 rounded-full text-xs font-bold text-white/85 hover:bg-white/10 hover:text-white"
-                  disabled={hintUsed || room !== null}
-                  onClick={useHint}
-                >
-                  <Lightbulb className="size-3.5 text-[#F9A01B]" />
-                  {hintUsed ? 'Bantuan sudah dipakai' : room ? 'Bantuan cuma buat solo' : 'Bantuan (-75% poin)'}
+              <form onSubmit={submit} className="flex items-center gap-2">
+                <Input
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Ketik nama halte…"
+                  className={cn(gameHud.input, 'flex-1', flash === 'bad' && 'border-rose-400')}
+                  autoComplete="off"
+                  autoFocus
+                  aria-invalid={flash === 'bad' || undefined}
+                />
+                <Button type="submit" className={gameHud.cta}>
+                  Tebak
                 </Button>
-              </div>
+              </form>
             )}
-          </HudBlock>
-
-          <HudBlock>
-            <Button
-              size="icon"
-              aria-label="Keluar"
-              title="Keluar"
-              className={gameHud.iconBtn}
-              onClick={onExit}
-            >
-              <LogOut className="size-5" />
-            </Button>
           </HudBlock>
         </div>
       </GameHudShell>
@@ -428,11 +408,11 @@ export function NameStopsGame({
       {toast ? (
         <div className="toast-in pointer-events-none absolute top-[42%] left-1/2 z-30 w-[min(90%,18rem)] -translate-x-1/2 -translate-y-1/2">
           <div className={cn(gameHud.panel, 'px-4 py-3 text-center')}>
-            <p className="text-[11px] font-bold tracking-wide text-white/70 uppercase">
+            <p className={cn('text-[11px] font-bold tracking-wide uppercase', gameHud.muted)}>
               Halte ketemu · {toast.by}
             </p>
-            <p className="mt-1 font-display text-xl font-bold text-white">{toast.name}</p>
-            <p className="mt-1 text-lg font-extrabold text-[#F9A01B]">
+            <p className="mt-1 font-display text-xl font-bold text-[#003324]">{toast.name}</p>
+            <p className="mt-1 text-lg font-extrabold text-[#FF6B00]">
               +{toast.points.toLocaleString('id-ID')}
             </p>
           </div>

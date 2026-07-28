@@ -20,10 +20,9 @@ import type { DifficultyLevel, GameData } from '@/types'
 import { type RouteRound } from '@/lib/game'
 import { sound } from '@/lib/sound'
 import { cn } from '@/lib/utils'
-import { HINT_PENALTY } from '@/lib/game'
-import { Lightbulb, LogOut } from 'lucide-react'
+import { LogOut } from 'lucide-react'
 import type { GameResult, GameRoundRecord } from '@/types'
-import { GameHudShell, HudBlock, gameHud } from '@/components/game/GameHud'
+import { GameHudShell, HudBlock, HudTopBar, gameHud } from '@/components/game/GameHud'
 
 interface Props {
   data: GameData
@@ -45,8 +44,6 @@ export function GuessRouteGame({
   const [phase, setPhase] = useState<'play' | 'reveal' | 'done'>('play')
   const [score, setScore] = useState(0)
   const [lastOk, setLastOk] = useState(false)
-  const [hintUsed, setHintUsed] = useState(false)
-  const [eliminated, setEliminated] = useState<Set<string>>(new Set())
   const scoreRef = useRef(0)
   const roundRecordsRef = useRef<GameRoundRecord[]>([])
 
@@ -76,11 +73,6 @@ export function GuessRouteGame({
     return [...codes].sort((a, b) => a.localeCompare(b, 'id'))
   }, [data, round])
 
-  const availableOptions = useMemo(
-    () => options.filter((code) => !eliminated.has(code)),
-    [options, eliminated],
-  )
-
   if (!round) {
     return (
       <div className="flex h-full items-center justify-center gap-3 bg-[#ebf4f9] text-[#003324]">
@@ -106,15 +98,12 @@ export function GuessRouteGame({
     if (!choice || phase !== 'play') return
     sound.guess()
     const ok = choice === round.route.code
-    let points = ok ? 1000 : 0
-    if (hintUsed) {
-      points = Math.floor(points * HINT_PENALTY)
-    }
+    const points = ok ? 1000 : 0
     roundRecordsRef.current.push({
       roundIndex: index,
       correctAnswer: round.route.code,
       score: points,
-      hintUsed,
+      hintUsed: false,
     })
     setLastOk(ok)
     if (points > 0) {
@@ -126,32 +115,19 @@ export function GuessRouteGame({
     setPhase('reveal')
   }
 
-  const useHint = () => {
-    if (phase !== 'play' || hintUsed) return
-    const wrongOptions = options.filter((code) => code !== round.route.code)
-    if (wrongOptions.length === 0) return
-    const toRemove = wrongOptions[Math.floor(Math.random() * wrongOptions.length)]!
-    if (choice === toRemove) setChoice('')
-    setEliminated((prev) => new Set(prev).add(toRemove))
-    setHintUsed(true)
-    sound.click()
-  }
-
   const finishOrNext = () => {
     if (index + 1 >= rounds.length) {
       setPhase('done')
       sound.win()
       onFinished({
         score: scoreRef.current,
-        hintCount: roundRecordsRef.current.filter((r) => r.hintUsed).length,
+        hintCount: 0,
         rounds: roundRecordsRef.current,
       })
       return
     }
     setIndex((i) => i + 1)
     setChoice('')
-    setEliminated(new Set())
-    setHintUsed(false)
     setPhase('play')
     sound.click()
   }
@@ -187,48 +163,63 @@ export function GuessRouteGame({
       </Map>
 
       <GameHudShell>
-        <div className="flex items-start justify-between gap-3">
-          <HudBlock className={cn(gameHud.panel, 'w-[min(100%,22rem)] p-3.5 sm:p-4')}>
-            <div className="flex items-start gap-3">
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-white font-display text-xl font-bold tabular-nums text-[#003324] sm:size-14 sm:text-2xl">
-                {index + 1}
+        <HudTopBar
+          left={
+            <HudBlock className={cn(gameHud.panel, 'w-[min(100%,22rem)] p-3.5 sm:p-4')}>
+              <div className="flex items-center gap-3">
+                <div className={gameHud.badge}>{index + 1}</div>
+                <div className="min-w-0 flex-1">
+                  <p className={cn('text-[11px] font-bold uppercase tracking-wide', gameHud.muted)}>
+                    Ronde {index + 1}/{rounds.length}
+                  </p>
+                  <h1 className="font-display text-lg font-bold leading-tight text-[#003324] sm:text-xl">
+                    Jalur ini rute apa?
+                  </h1>
+                  <p className={cn('mt-0.5 text-xs font-semibold', gameHud.muted)}>
+                    Pilih kode rute yang paling cocok.
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-white/70">
-                  Ronde {index + 1}/{rounds.length}
-                </p>
-                <h1 className="font-display text-lg font-bold leading-tight sm:text-xl">
-                  Jalur ini rute apa?
-                </h1>
-                <p className="mt-0.5 text-xs font-semibold text-white/75">
-                  Pilih kode rute yang paling cocok.
-                </p>
-              </div>
+              {phase === 'reveal' ? (
+                <div className="mt-3 space-y-2">
+                  <p
+                    className={cn(
+                      'font-display text-xl font-bold',
+                      lastOk ? 'text-[#108043]' : 'text-rose-500',
+                    )}
+                  >
+                    {lastOk ? 'Benar!' : 'Belum tepat'}
+                  </p>
+                  <RouteBadge
+                    code={round.route.code}
+                    name={round.route.name}
+                    color={routeColor}
+                    agency={round.route.agency}
+                    size="md"
+                    showName
+                  />
+                </div>
+              ) : null}
+            </HudBlock>
+          }
+          right={
+            <div className="flex items-center gap-2">
+              <HudBlock className={cn(gameHud.pill, 'min-w-[5rem] tabular-nums')}>
+                <span className={cn('mr-1 text-[10px] font-bold uppercase tracking-wide', gameHud.muted)}>
+                  Poin
+                </span>
+                {score.toLocaleString('id-ID')}
+              </HudBlock>
+              <HudBlock>
+                <Button size="icon" aria-label="Keluar" className={gameHud.iconBtn} onClick={onExit}>
+                  <LogOut className="size-5" />
+                </Button>
+              </HudBlock>
             </div>
-            {phase === 'reveal' ? (
-              <div className="mt-3 space-y-2">
-                <p className={cn('font-display text-xl font-bold', lastOk ? 'text-[#3FB971]' : 'text-rose-300')}>
-                  {lastOk ? 'Benar!' : 'Belum tepat'}
-                </p>
-                <RouteBadge
-                  code={round.route.code}
-                  name={round.route.name}
-                  color={routeColor}
-                  agency={round.route.agency}
-                  size="md"
-                  showName
-                />
-              </div>
-            ) : null}
-          </HudBlock>
+          }
+        />
 
-          <HudBlock className={cn(gameHud.pill, 'min-w-[5rem] tabular-nums')}>
-            <span className="mr-1 text-[10px] font-bold uppercase tracking-wide text-white/70">Poin</span>
-            {score.toLocaleString('id-ID')}
-          </HudBlock>
-        </div>
-
-        <div className="flex items-end justify-between gap-3">
+        <div className="flex justify-center">
           <HudBlock className={cn(gameHud.panel, 'w-[min(100%,28rem)] space-y-2 p-3')}>
             {phase === 'reveal' ? (
               <Button className={cn(gameHud.cta, 'w-full')} onClick={finishOrNext}>
@@ -237,11 +228,11 @@ export function GuessRouteGame({
             ) : (
               <>
                 <Select value={choice} onValueChange={setChoice}>
-                  <SelectTrigger className={cn(gameHud.input, 'w-full border-white/25')}>
+                  <SelectTrigger className={cn(gameHud.input, 'w-full')}>
                     <SelectValue placeholder="Pilih kode rute" />
                   </SelectTrigger>
                   <SelectContent className="max-h-72">
-                    {availableOptions.map((code) => (
+                    {options.map((code) => (
                       <SelectItem key={code} value={code}>
                         {code}
                         {routeByCode.get(code) ? ` - ${routeByCode.get(code)}` : ''}
@@ -249,32 +240,11 @@ export function GuessRouteGame({
                     ))}
                   </SelectContent>
                 </Select>
-                <div className="flex gap-2">
-                  <Button
-                    className={cn(gameHud.cta, 'flex-1')}
-                    disabled={!choice}
-                    onClick={submit}
-                  >
-                    Tebak
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="h-12 gap-2 rounded-full px-3 text-xs font-bold text-white/85 hover:bg-white/10 hover:text-white"
-                    disabled={hintUsed || availableOptions.length <= 2}
-                    onClick={useHint}
-                  >
-                    <Lightbulb className="size-4 text-[#F9A01B]" />
-                    Hint
-                  </Button>
-                </div>
+                <Button className={cn(gameHud.cta, 'w-full')} disabled={!choice} onClick={submit}>
+                  Tebak
+                </Button>
               </>
             )}
-          </HudBlock>
-
-          <HudBlock>
-            <Button size="icon" aria-label="Keluar" className={gameHud.iconBtn} onClick={onExit}>
-              <LogOut className="size-5" />
-            </Button>
           </HudBlock>
         </div>
       </GameHudShell>
