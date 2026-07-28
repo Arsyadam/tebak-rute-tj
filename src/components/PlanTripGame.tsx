@@ -7,7 +7,6 @@ import {
   MarkerContent,
 } from '@/components/ui/map'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import {
   Select,
   SelectContent,
@@ -23,7 +22,6 @@ import Timeline, {
   TimelineItemDescription,
   TimelineItemTitle,
 } from '@/components/8starlabs-ui/timeline'
-import StatusIndicator from '@/components/8starlabs-ui/status-indicator'
 import type { DifficultyLevel, GameData, Route } from '@/types'
 import {
   distractorRoutes,
@@ -33,8 +31,9 @@ import {
 import { sound } from '@/lib/sound'
 import { cn } from '@/lib/utils'
 import { HINT_PENALTY } from '@/lib/game'
-import { ArrowRight, X, Lightbulb } from 'lucide-react'
+import { ArrowRight, Lightbulb, LogOut } from 'lucide-react'
 import type { GameRoundRecord, GameResult } from '@/types'
+import { GameHudShell, HudBlock, gameHud } from '@/components/game/GameHud'
 
 interface Props {
   data: GameData
@@ -190,10 +189,10 @@ export function PlanTripGame({
 
   if (phase === 'done') {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 bg-[#14171c] text-white">
-        <p className="text-sm tracking-[0.2em] text-white/45 uppercase">Selesai</p>
-        <h2 className="font-display text-5xl font-extrabold">{score.toLocaleString('id-ID')}</h2>
-        <Button onClick={onExit} className="bg-[var(--tj)] hover:bg-[#094a86]">
+      <div className="flex h-full flex-col items-center justify-center gap-4 bg-[#ebf4f9] text-[#003324]">
+        <p className="text-sm font-bold tracking-[0.18em] text-[#19483f] uppercase">Selesai</p>
+        <h2 className="font-display text-5xl font-bold">{score.toLocaleString('id-ID')}</h2>
+        <Button onClick={onExit} className="rounded-full bg-[#108043] px-6 font-bold text-white hover:bg-[#12452b]">
           Kembali ke menu
         </Button>
       </div>
@@ -283,49 +282,33 @@ export function PlanTripGame({
   const step = !firstRoute ? 1 : needsTransfer && !transfer ? 2 : needsTransfer && !secondRoute ? 3 : 4
 
   const answerPanel = (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-start gap-2 border-b border-border/60 px-4 py-3">
-        <Button
-          size="icon"
-          variant="secondary"
-          className="mt-0.5 shrink-0 rounded-full"
-          onClick={onExit}
-          disableHoverPop
-        >
-          <X className="size-4" />
-        </Button>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">
-              Ronde {index + 1}/{journeys.length}
-            </Badge>
-            <Badge variant="outline">{needsTransfer ? '1x transit' : 'Tanpa transit'}</Badge>
+    <div className={cn(gameHud.panel, 'flex max-h-[min(70vh,36rem)] w-[min(100%,24rem)] flex-col overflow-hidden')}>
+      <div className="shrink-0 space-y-2 border-b border-white/15 p-3.5 sm:p-4">
+        <div className="flex items-start gap-3">
+          <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-white font-display text-xl font-bold tabular-nums text-[#003324]">
+            {index + 1}
           </div>
-          <h1 className="mt-1.5 font-display text-xl font-bold leading-tight">Dari A ke B, naik apa?</h1>
-            <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-sm">
-              <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 font-semibold text-emerald-700">
-                Titik A · {journey.from.name}
-              </span>
-              <ArrowRight className="size-3.5 shrink-0 text-muted-foreground" />
-              <span className="rounded-md bg-rose-50 px-1.5 py-0.5 font-semibold text-rose-700">
-                Titik B · {journey.to.name}
-              </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-white/70">
+              Ronde {index + 1}/{journeys.length} · {needsTransfer ? '1x transit' : 'Direct'}
             </p>
+            <h1 className="font-display text-lg font-bold leading-tight sm:text-xl">Dari A ke B, naik apa?</h1>
+          </div>
         </div>
-        <span className="shrink-0 text-sm font-bold tabular-nums">
-          {score.toLocaleString('id-ID')}
-        </span>
+        <p className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
+          <span className="rounded-full bg-[#108043] px-2 py-0.5 text-white">A · {journey.from.name}</span>
+          <ArrowRight className="size-3.5 shrink-0 text-white/70" />
+          <span className="rounded-full bg-[#F9A01B] px-2 py-0.5 text-[#003324]">B · {journey.to.name}</span>
+        </p>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3.5 sm:p-4">
         {phase === 'reveal' ? (
           <div className="space-y-3">
-            <StatusIndicator
-              state={lastOk ? 'active' : 'down'}
-              label={lastOk ? 'Benar!' : 'Belum tepat'}
-              size="md"
-            />
-            <Timeline orientation="vertical" noCards alternating={false} className="w-full">
+            <p className={cn('font-display text-xl font-bold', lastOk ? 'text-[#3FB971]' : 'text-rose-300')}>
+              {lastOk ? 'Benar!' : 'Belum tepat'}
+            </p>
+            <Timeline orientation="vertical" noCards alternating={false} className="w-full text-white">
               {journey.legs.map((leg, i) => (
                 <TimelineItem key={`${leg.routeId}-${i}`} hollow={i > 0}>
                   <TimelineItemDate>{i === 0 ? 'Naik dulu' : 'Lanjut lagi'}</TimelineItemDate>
@@ -349,24 +332,14 @@ export function PlanTripGame({
             </Timeline>
           </div>
         ) : (
-          <div className="space-y-4">
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              Jawab berurutan. Pilih opsi → jalur preview muncul di peta.
+          <div className="space-y-3">
+            <p className="text-xs font-medium leading-relaxed text-white/75">
+              Jawab berurutan. Pilih opsi, jalur preview muncul di peta.
             </p>
-
-            {firstRoute ? (
-              <RouteBadge
-                code={firstRoute}
-                color={routeByCode(data, firstRoute)?.color}
-                agency={routeByCode(data, firstRoute)?.agency}
-                size="sm"
-                showName
-              />
-            ) : null}
 
             <Field
               label="1. Naik dulu"
-              hint={step === 1 ? 'Pilih rute pertama yang paling cocok' : undefined}
+              hint={step === 1 ? 'Pilih rute pertama' : undefined}
               active={step === 1}
             >
               <Select
@@ -376,7 +349,7 @@ export function PlanTripGame({
                   sound.click()
                 }}
               >
-                <SelectTrigger className="h-11 w-full bg-background">
+                <SelectTrigger className={cn(gameHud.input, 'w-full')}>
                   <SelectValue placeholder="Pilih kode rute" />
                 </SelectTrigger>
                 <SelectContent className="max-h-72">
@@ -405,7 +378,7 @@ export function PlanTripGame({
                     }}
                     disabled={!firstRoute}
                   >
-                    <SelectTrigger className="h-11 w-full bg-background">
+                    <SelectTrigger className={cn(gameHud.input, 'w-full')}>
                       <SelectValue placeholder="Pilih halte transit" />
                     </SelectTrigger>
                     <SelectContent className="max-h-72">
@@ -420,7 +393,7 @@ export function PlanTripGame({
 
                 <Field
                   label="3. Lanjut naik"
-                  hint={!transfer ? 'Isi langkah 2 dulu' : step === 3 ? 'Pilih rute lanjutan yang paling cocok' : undefined}
+                  hint={!transfer ? 'Isi langkah 2 dulu' : step === 3 ? 'Pilih rute lanjutan' : undefined}
                   active={step === 3}
                   locked={!transfer}
                 >
@@ -432,7 +405,7 @@ export function PlanTripGame({
                     }}
                     disabled={!transfer}
                   >
-                    <SelectTrigger className="h-11 w-full bg-background">
+                    <SelectTrigger className={cn(gameHud.input, 'w-full')}>
                       <SelectValue placeholder="Pilih kode rute" />
                     </SelectTrigger>
                     <SelectContent className="max-h-72">
@@ -446,36 +419,31 @@ export function PlanTripGame({
                 </Field>
               </>
             ) : (
-              <p className="rounded-xl bg-muted px-3 py-2 text-xs text-muted-foreground">
-                Perjalanan langsung — tanpa transit.
+              <p className="rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold text-white/80">
+                Perjalanan langsung - tanpa transit.
               </p>
             )}
           </div>
         )}
       </div>
 
-      <div className="border-t border-border/60 p-4 space-y-2">
+      <div className="shrink-0 space-y-2 border-t border-white/15 p-3">
         {phase === 'reveal' ? (
-          <Button className="h-11 w-full" onClick={finishOrNext} withArrow>
+          <Button className={cn(gameHud.cta, 'w-full')} onClick={finishOrNext}>
             {index + 1 >= journeys.length ? 'Lihat skor' : 'Lanjut'}
           </Button>
         ) : (
           <>
-            <Button
-              className="h-11 w-full font-bold"
-              disabled={!canSubmit}
-              onClick={submit}
-              withArrow
-            >
+            <Button className={cn(gameHud.cta, 'w-full')} disabled={!canSubmit} onClick={submit}>
               Tebak
             </Button>
             <Button
-              variant="outline"
-              className="h-10 w-full gap-2"
+              variant="ghost"
+              className="h-9 w-full gap-2 rounded-full text-xs font-bold text-white/85 hover:bg-white/10 hover:text-white"
               disabled={hintUsed}
               onClick={useHint}
             >
-              <Lightbulb className="size-4" />
+              <Lightbulb className="size-3.5 text-[#F9A01B]" />
               {hintUsed ? 'Bantuan sudah dipakai' : 'Bantuan (-75% poin)'}
             </Button>
           </>
@@ -529,11 +497,25 @@ export function PlanTripGame({
   )
 
   return (
-    <div className="relative flex h-full w-full overflow-hidden bg-[#e9ecef]">
-      <aside className="absolute inset-x-0 bottom-0 z-20 flex max-h-[52%] flex-col overflow-hidden rounded-t-2xl border border-black/8 bg-white shadow-[0_-8px_28px_rgba(0,0,0,0.12)] lg:static lg:inset-auto lg:z-auto lg:h-full lg:max-h-none lg:w-[380px] lg:shrink-0 lg:rounded-none lg:border-r lg:border-b-0 lg:shadow-[8px_0_24px_rgba(0,0,0,0.06)] xl:w-[420px]">
-        {answerPanel}
-      </aside>
-      <div className="relative min-h-0 min-w-0 flex-1 pb-[min(52%,28rem)] lg:pb-0">{mapPane}</div>
+    <div className="relative h-full w-full overflow-hidden bg-[#ebf4f9]">
+      {mapPane}
+      <GameHudShell>
+        <div className="flex items-start justify-between gap-3">
+          <HudBlock>{answerPanel}</HudBlock>
+          <div className="flex flex-col items-end gap-2">
+            <HudBlock className={cn(gameHud.pill, 'min-w-[5rem] tabular-nums')}>
+              <span className="mr-1 text-[10px] font-bold uppercase tracking-wide text-white/70">Poin</span>
+              {score.toLocaleString('id-ID')}
+            </HudBlock>
+            <HudBlock>
+              <Button size="icon" aria-label="Keluar" className={gameHud.iconBtn} onClick={onExit}>
+                <LogOut className="size-5" />
+              </Button>
+            </HudBlock>
+          </div>
+        </div>
+        <div />
+      </GameHudShell>
     </div>
   )
 }
@@ -554,16 +536,14 @@ function Field({
   return (
     <div
       className={cn(
-        'space-y-1.5 rounded-xl border p-3 transition',
-        active ? 'border-primary/40 bg-primary/[0.04]' : 'border-transparent bg-transparent',
+        'space-y-1.5 rounded-2xl border p-2.5 transition',
+        active ? 'border-[#F9A01B]/55 bg-white/10' : 'border-white/10 bg-white/5',
         locked && 'opacity-45',
       )}
     >
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-          {label}
-        </span>
-        {hint ? <span className="text-[11px] text-primary">{hint}</span> : null}
+        <span className="text-xs font-bold tracking-wide text-white/80 uppercase">{label}</span>
+        {hint ? <span className="text-[11px] font-semibold text-[#F9A01B]">{hint}</span> : null}
       </div>
       {children}
     </div>
