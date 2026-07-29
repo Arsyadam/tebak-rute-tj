@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   Map,
   MapControls,
@@ -33,6 +33,7 @@ import { cn } from '@/lib/utils'
 import { ArrowRight, LogOut } from 'lucide-react'
 import type { GameRoundRecord, GameResult } from '@/types'
 import { GameHudShell, HudBlock, gameHud } from '@/components/game/GameHud'
+import { hasHardTimer, shouldHideMapLabels, useCountdown } from '@/hooks/useCountdown'
 
 interface Props {
   data: GameData
@@ -72,10 +73,13 @@ function findStopByName(data: GameData, name: string) {
 export function PlanTripGame({
   data,
   journeys,
-  difficultyLevel: _difficultyLevel,
+  difficultyLevel = 'gampang',
   onExit,
   onFinished,
 }: Props) {
+  const hard = hasHardTimer(difficultyLevel)
+  const hideLabels = shouldHideMapLabels(difficultyLevel)
+
   const [index, setIndex] = useState(0)
   const [firstRoute, setFirstRoute] = useState('')
   const [transfer, setTransfer] = useState('')
@@ -83,11 +87,41 @@ export function PlanTripGame({
   const [phase, setPhase] = useState<'play' | 'reveal' | 'done'>('play')
   const [score, setScore] = useState(0)
   const [lastOk, setLastOk] = useState(false)
+  const [failReason, setFailReason] = useState<'wrong' | 'timeout' | null>(null)
   const scoreRef = useRef(0)
   const roundsRef = useRef<GameRoundRecord[]>([])
 
   const journey = journeys[index]
   const needsTransfer = (journey?.legs.length ?? 0) > 1
+  const playing = phase === 'play'
+
+  const failRound = useCallback(() => {
+    if (!journey || phase !== 'play') return
+    const leg1 = journey.legs[0]!
+    const correctAnswer = needsTransfer
+      ? `${leg1.routeCode} → ${journey.transferName ?? ''} → ${journey.legs[1]?.routeCode ?? ''}`
+      : leg1.routeCode
+    roundsRef.current.push({
+      roundIndex: index,
+      correctAnswer,
+      score: 0,
+      hintUsed: false,
+    })
+    setLastOk(false)
+    setFailReason('timeout')
+    setPhase('reveal')
+  }, [journey, phase, needsTransfer, index])
+
+  const countdown = useCountdown({
+    enabled: hard && phase !== 'done',
+    onTimeout: failRound,
+    paused: !playing,
+  })
+  const resetCountdown = countdown.reset
+
+  useEffect(() => {
+    if (hard && phase === 'play') resetCountdown()
+  }, [index, hard, phase, resetCountdown])
 
   const routeOptions = useMemo(() => {
     if (!journey) return []
@@ -179,7 +213,7 @@ export function PlanTripGame({
   if (!journey) {
     return (
       <div className="flex h-full items-center justify-center gap-3">
-        Tidak ada perjalanan.
+        Belum ada perjalanan nih.
         <Button onClick={onExit}>Keluar</Button>
       </div>
     )
@@ -188,10 +222,14 @@ export function PlanTripGame({
   if (phase === 'done') {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 bg-[#ebf4f9] text-[#003324]">
-        <p className="text-sm font-bold tracking-[0.18em] text-[#19483f] uppercase">Selesai</p>
+        <p className="text-sm font-bold tracking-[0.18em] text-[#19483f] uppercase">Selesai!</p>
         <h2 className="font-display text-5xl font-bold">{score.toLocaleString('id-ID')}</h2>
-        <Button onClick={onExit} className="rounded-full bg-[#108043] px-6 font-bold text-white hover:bg-[#12452b]">
-          Kembali ke menu
+        <p className="text-sm font-semibold text-[#19483f]/75">Mantap banget skornya</p>
+        <Button
+          onClick={onExit}
+          className="rounded-xl bg-[#108043] px-6 font-bold text-white hover:bg-[#12452b]"
+        >
+          Balik ke menu
         </Button>
       </div>
     )
@@ -225,6 +263,7 @@ export function PlanTripGame({
     })
 
     setLastOk(ok)
+    setFailReason(ok ? null : 'wrong')
     if (points > 0) {
       const next = scoreRef.current + points
       scoreRef.current = next
@@ -250,6 +289,7 @@ export function PlanTripGame({
     setFirstRoute('')
     setTransfer('')
     setSecondRoute('')
+    setFailReason(null)
     setPhase('play')
     sound.click()
   }
@@ -274,17 +314,38 @@ export function PlanTripGame({
           </div>
         </div>
         <p className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
-          <span className="rounded-full bg-[#108043] px-2 py-0.5 text-white">A · {journey.from.name}</span>
+          <span className="rounded-xl bg-[#108043] px-2 py-0.5 text-white">A · {journey.from.name}</span>
           <ArrowRight className={cn('size-3.5 shrink-0', gameHud.muted)} />
-          <span className="rounded-full bg-[#F9A01B] px-2 py-0.5 text-[#003324]">B · {journey.to.name}</span>
+          <span className="rounded-xl bg-[#F9A01B] px-2 py-0.5 text-[#003324]">B · {journey.to.name}</span>
         </p>
+        {hard ? (
+          <div
+            className={cn(
+              'inline-flex min-w-[4.5rem] items-center justify-center rounded-xl px-3 py-1.5 font-display text-sm font-bold tabular-nums',
+              countdown.isUrgent
+                ? 'bg-[#E4002B] text-white'
+                : 'bg-[#F9A01B] text-[#003324]',
+            )}
+          >
+            {countdown.label}
+          </div>
+        ) : null}
       </div>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3.5 sm:p-4">
         {phase === 'reveal' ? (
           <div className="space-y-3">
-            <p className={cn('font-display text-xl font-bold', lastOk ? 'text-[#108043]' : 'text-rose-500')}>
-              {lastOk ? 'Benar!' : 'Belum tepat'}
+            <p
+              className={cn(
+                'font-display text-xl font-bold',
+                lastOk ? 'text-[#108043]' : 'text-[#E4002B]',
+              )}
+            >
+              {lastOk
+                ? 'Bener banget!'
+                : failReason === 'timeout'
+                  ? 'Waktu habis — gagal!'
+                  : 'Hmm, belum pas…'}
             </p>
             <Timeline orientation="vertical" noCards alternating={false} className="w-full text-[#003324]">
               {journey.legs.map((leg, i) => (
@@ -312,7 +373,7 @@ export function PlanTripGame({
         ) : (
           <div className="space-y-3">
             <p className={cn('text-xs font-medium leading-relaxed', gameHud.muted)}>
-              Jawab berurutan. Pilih opsi, jalur preview muncul di peta.
+              Jawab berurutan ya. Pilih opsi, jalur preview muncul di peta.
             </p>
 
             <Field
@@ -398,7 +459,7 @@ export function PlanTripGame({
               </>
             ) : (
               <p className={cn('rounded-xl bg-[#EBF4F9] px-3 py-2 text-xs font-semibold', gameHud.muted)}>
-                Perjalanan langsung - tanpa transit.
+                Perjalanan langsung — tanpa transit.
               </p>
             )}
           </div>
@@ -408,11 +469,11 @@ export function PlanTripGame({
       <div className="shrink-0 border-t border-[rgba(18,69,43,0.12)] p-3">
         {phase === 'reveal' ? (
           <Button className={cn(gameHud.cta, 'w-full')} onClick={finishOrNext}>
-            {index + 1 >= journeys.length ? 'Lihat skor' : 'Lanjut'}
+            {index + 1 >= journeys.length ? 'Lihat skor' : 'Lanjut yuk'}
           </Button>
         ) : (
           <Button className={cn(gameHud.cta, 'w-full')} disabled={!canSubmit} onClick={submit}>
-            Tebak
+            Tebak yuk
           </Button>
         )}
       </div>
@@ -426,6 +487,7 @@ export function PlanTripGame({
       center={[(journey.from.lon + journey.to.lon) / 2, (journey.from.lat + journey.to.lat) / 2]}
       zoom={12}
       className="h-full w-full"
+      hideLabels={hideLabels && phase === 'play'}
     >
       <MapControls showZoom showCompass position="bottom-right" />
       {fitPath.length >= 2 ? <FitRoute path={fitPath} /> : null}
@@ -505,7 +567,7 @@ function Field({
   return (
     <div
       className={cn(
-        'space-y-1.5 rounded-2xl border p-2.5 transition',
+        'space-y-1.5 rounded-xl border p-2.5 transition',
         active ? 'border-[#F9A01B] bg-[#FFF6E8]' : 'border-[rgba(18,69,43,0.12)] bg-[#EBF4F9]',
         locked && 'opacity-45',
       )}

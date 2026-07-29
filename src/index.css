@@ -88,7 +88,7 @@
   body {
     @apply bg-background text-foreground antialiased;
     margin: 0;
-    font-family: "Source Sans 3", "Segoe UI", sans-serif;
+    font-family: "PT Sans", "Segoe UI", sans-serif;
   }
   .maplibregl-popup-content {
     @apply bg-transparent! shadow-none! p-0! rounded-none!;

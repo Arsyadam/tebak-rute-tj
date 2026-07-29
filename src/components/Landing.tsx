@@ -433,7 +433,7 @@ export function Landing({ data, onStart }: Props) {
                 {leaderboard.length === 0 ? (
                   <div className="rounded-[24px] bg-[#ffeee6] px-5 py-10 text-center">
                     <p className="font-display text-lg font-bold text-[#003324]">Belum ada skor</p>
-                    <p className="mt-1 text-sm font-semibold text-[#19483f]/75">Main dulu, yuk - biar namamu muncul di sini.</p>
+                    <p className="mt-1 text-sm font-semibold text-[#19483f]/75">Main dulu yuk — biar namamu muncul di sini.</p>
                   </div>
                 ) : (
                   <ul className="space-y-2.5">

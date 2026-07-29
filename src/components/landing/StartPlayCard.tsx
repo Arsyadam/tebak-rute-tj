@@ -69,16 +69,16 @@ type Props = {
 }
 
 const shell =
-  'space-y-3.5 rounded-[28px] border border-white/12 bg-[#1a1638] p-5 text-white shadow-[0_24px_48px_rgba(17,24,39,0.28)]'
-const titleClass = 'font-display text-center text-2xl font-extrabold italic tracking-tight text-white'
-const pillWhite =
-  'h-11 w-full rounded-full border-0 bg-white font-bold italic text-[#1a1638] hover:bg-white/95'
-const pillOutline =
-  'h-11 w-full rounded-full border border-white/45 bg-transparent font-bold italic text-white hover:bg-white/10'
-const pillGreen =
-  'h-11 w-full rounded-full border-0 bg-[#108043] font-bold italic text-white hover:bg-[#12452b]'
+  'space-y-3.5 rounded-2xl border border-white/12 bg-[#1a1638] p-5 text-white shadow-[0_24px_48px_rgba(17,24,39,0.28)]'
+const titleClass = 'font-display text-center text-2xl font-extrabold tracking-tight text-white'
+const btnWhite =
+  'h-11 w-full rounded-xl border-0 bg-white font-bold text-[#1a1638] hover:bg-white/95'
+const btnOutline =
+  'h-11 w-full rounded-xl border border-white/45 bg-transparent font-bold text-white hover:bg-white/10'
+const btnGreen =
+  'h-11 w-full rounded-xl border-0 bg-[#108043] font-bold text-white hover:bg-[#12452b]'
 const field =
-  'h-11 rounded-full border-white/30 bg-[#120f28] text-white placeholder:text-white/55 focus-visible:border-[#f9a01b] focus-visible:ring-[#f9a01b]/30'
+  'h-11 rounded-xl border-white/30 bg-[#120f28] text-white placeholder:text-white/55 focus-visible:border-[#f9a01b] focus-visible:ring-[#f9a01b]/30'
 const labelMuted = 'text-sm font-semibold text-white/85'
 
 const MODE_ICONS: Record<GameMode, typeof MapPinned> = {
@@ -113,7 +113,7 @@ function AuthFooter({
       <button
         type="button"
         onClick={onAction}
-        className="rounded-full bg-white/20 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white hover:bg-white/30"
+        className="rounded-xl bg-white/20 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white hover:bg-white/30"
       >
         {actionLabel}
       </button>
@@ -156,7 +156,7 @@ function ModeFields({
                 disabled={!canPlay}
                 onClick={() => setMode(m)}
                 className={cn(
-                  'flex items-center gap-2.5 rounded-full border px-3 py-2 text-left transition',
+                  'flex items-center gap-2.5 rounded-xl border px-3 py-2 text-left transition',
                   active
                     ? 'border-[#108043] bg-[#108043] text-white shadow-[0_8px_20px_rgba(16,128,67,0.35)]'
                     : 'border-white/20 bg-[#120f28] text-white/90 hover:border-white/40 hover:bg-white/5',
@@ -164,7 +164,7 @@ function ModeFields({
                 )}
               >
                 <Icon className="size-4 shrink-0" />
-                <span className="text-sm font-bold italic leading-none">{MODE_META[m].title}</span>
+                <span className="text-sm font-bold leading-none">{MODE_META[m].title}</span>
               </button>
             )
           })}
@@ -179,7 +179,7 @@ function ModeFields({
             onValueChange={(v) => setDifficulty(v as Difficulty | 'all')}
             disabled={!canPlay}
           >
-            <SelectTrigger className="h-11 rounded-full border-white/30 bg-[#120f28] text-white">
+            <SelectTrigger className="h-11 rounded-xl border-white/30 bg-[#120f28] text-white">
               <span className="flex min-w-0 items-center gap-2">
                 <Bus className="size-4 shrink-0 text-[#f9a01b]" />
                 <SelectValue />
@@ -201,16 +201,16 @@ function ModeFields({
             onValueChange={(v) => setDifficultyLevel(v as DifficultyLevel)}
             disabled={!canPlay}
           >
-            <SelectTrigger className="h-11 rounded-full border-white/30 bg-[#120f28] text-white">
+            <SelectTrigger className="h-11 rounded-xl border-white/30 bg-[#120f28] text-white">
               <span className="flex min-w-0 items-center gap-2">
                 <Gauge className="size-4 shrink-0 text-[#f9a01b]" />
                 <SelectValue />
               </span>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="gampang">Gampang</SelectItem>
+              <SelectItem value="gampang">Gampang — ada hint</SelectItem>
               <SelectItem value="agak-sulit">Agak Sulit</SelectItem>
-              <SelectItem value="sulit-banget">Sulit Banget</SelectItem>
+              <SelectItem value="sulit-banget">Sulit Banget — 40 detik</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -265,10 +265,10 @@ export function StartPlayCard(props: Props) {
           {routeCount} rute {stopCount} halte
         </p>
         <div className="space-y-2.5 pt-1">
-          <Button className={pillWhite} onClick={googleLogin} disabled={authBusy}>
+          <Button className={btnWhite} onClick={googleLogin} disabled={authBusy}>
             Continue with Google
           </Button>
-          <Button className={pillOutline} onClick={() => setStep('register')} disabled={authBusy}>
+          <Button className={btnOutline} onClick={() => setStep('register')} disabled={authBusy}>
             <Mail className="size-4" /> Continue with Email
           </Button>
           <div className="relative my-3">
@@ -277,7 +277,7 @@ export function StartPlayCard(props: Props) {
               or
             </span>
           </div>
-          <Button className={pillGreen} onClick={() => setStep('guest-name')} disabled={authBusy}>
+          <Button className={btnGreen} onClick={() => setStep('guest-name')} disabled={authBusy}>
             <User className="size-4" /> Continue as Guest
           </Button>
         </div>
@@ -296,7 +296,7 @@ export function StartPlayCard(props: Props) {
           className={field}
           onKeyDown={(e) => e.key === 'Enter' && submitGuest()}
         />
-        <Button className={pillGreen} onClick={submitGuest} disabled={authBusy}>
+        <Button className={btnGreen} onClick={submitGuest} disabled={authBusy}>
           Continue
         </Button>
         {authError ? <p className="text-center text-sm text-rose-300">{authError}</p> : null}
@@ -336,10 +336,10 @@ export function StartPlayCard(props: Props) {
           className={field}
           onKeyDown={(e) => e.key === 'Enter' && submitEmail()}
         />
-        <Button className={pillGreen} onClick={submitEmail} disabled={authBusy}>
+        <Button className={btnGreen} onClick={submitEmail} disabled={authBusy}>
           {isRegister ? 'Sign up' : 'Log in'}
         </Button>
-        <Button className={pillWhite} onClick={googleLogin} disabled={authBusy}>
+        <Button className={btnWhite} onClick={googleLogin} disabled={authBusy}>
           Continue with Google
         </Button>
         {authError ? <p className="text-center text-sm text-rose-300">{authError}</p> : null}
@@ -367,9 +367,9 @@ export function StartPlayCard(props: Props) {
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
-            <p className="truncate font-semibold italic text-white">{user.name}</p>
+            <p className="truncate font-semibold text-white">{user.name}</p>
             <p className="text-xs font-medium text-white/80">
-              {user.isGuest ? 'Guest' : user.email || 'Akun tersimpan'}
+              {user.isGuest ? 'Main sebagai guest' : user.email || 'Akun tersimpan'}
             </p>
           </div>
           <Button variant="ghost" className="text-white hover:bg-white/15 hover:text-white" onClick={doLogout}>
@@ -378,25 +378,25 @@ export function StartPlayCard(props: Props) {
         </div>
 
         <Tabs value={playStyle} onValueChange={(v) => setPlayStyle(v as PlayStyle)}>
-          <TabsList className="w-full rounded-full bg-[#120f28] p-1">
+          <TabsList className="w-full rounded-xl bg-[#120f28] p-1">
             <TabsTrigger
               value="solo"
-              className="gap-1.5 rounded-full italic text-white/75 data-[state=active]:bg-[#108043] data-[state=active]:text-white data-[state=inactive]:text-white/75"
+              className="gap-1.5 rounded-lg text-white/75 data-[state=active]:bg-[#108043] data-[state=active]:text-white data-[state=inactive]:text-white/75"
             >
               <User className="size-3.5" /> Solo
             </TabsTrigger>
             <TabsTrigger
               value="friends"
-              className="gap-1.5 rounded-full italic text-white/75 data-[state=active]:bg-[#108043] data-[state=active]:text-white data-[state=inactive]:text-white/75"
+              className="gap-1.5 rounded-lg text-white/75 data-[state=active]:bg-[#108043] data-[state=active]:text-white data-[state=inactive]:text-white/75"
             >
-              <Users className="size-3.5" /> Bareng teman
+              <Users className="size-3.5" /> Bareng temen
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="solo" className="mt-3 space-y-3.5">
             <ModeFields {...props} />
-            <Button size="lg" disabled={!canPlay} className={pillGreen} onClick={startSolo}>
-              Mulai solo
+            <Button size="lg" disabled={!canPlay} className={btnGreen} onClick={startSolo}>
+              Gas solo!
             </Button>
           </TabsContent>
 
@@ -405,7 +405,7 @@ export function StartPlayCard(props: Props) {
 
             <div className="flex items-center gap-2">
               <Button
-                className="h-10 shrink-0 rounded-full bg-[#108043] px-4 font-bold italic text-white hover:bg-[#12452b]"
+                className="h-10 shrink-0 rounded-xl bg-[#108043] px-4 font-bold text-white hover:bg-[#12452b]"
                 disabled={!canPlay || busy || Boolean(room)}
                 onClick={createRoom}
               >
@@ -429,7 +429,7 @@ export function StartPlayCard(props: Props) {
               />
               <Button
                 disabled={!canPlay || busy || Boolean(room)}
-                className="h-10 shrink-0 rounded-full bg-white/18 px-3 font-bold italic text-white hover:bg-white/28"
+                className="h-10 shrink-0 rounded-xl bg-white/18 px-3 font-bold text-white hover:bg-white/28"
                 onClick={() => void joinRoom()}
               >
                 Gabung
@@ -449,16 +449,16 @@ export function StartPlayCard(props: Props) {
 
             {room?.isHost ? (
               <div className="rounded-2xl border border-white/20 bg-white/8 p-2.5">
-                <p className="mb-1.5 text-xs font-semibold text-white/80">Bagikan link room</p>
+                <p className="mb-1.5 text-xs font-semibold text-white/80">Bagikan link room ke temen</p>
                 <div className="flex items-center gap-2">
                   <Input
                     value={`${window.location.origin}/?room=${room.code}`}
                     readOnly
-                    className="h-9 rounded-full border-white/25 bg-[#120f28] text-xs text-white"
+                    className="h-9 rounded-xl border-white/25 bg-[#120f28] text-xs text-white"
                   />
                   <Button
                     size="icon"
-                    className="size-9 shrink-0 rounded-full bg-white/18 text-white hover:bg-white/28"
+                    className="size-9 shrink-0 rounded-xl bg-white/18 text-white hover:bg-white/28"
                     aria-label="Salin link room"
                     onClick={() => navigator.clipboard.writeText(`${window.location.origin}/?room=${room.code}`)}
                   >
@@ -474,7 +474,7 @@ export function StartPlayCard(props: Props) {
                   <Badge
                     key={p.id}
                     variant="secondary"
-                    className="gap-1.5 rounded-full border-0 bg-white/15 px-2.5 py-1 text-white"
+                    className="gap-1.5 rounded-xl border-0 bg-white/15 px-2.5 py-1 text-white"
                   >
                     <span className="size-2 rounded-full" style={{ background: p.color }} />
                     {p.name}
@@ -489,7 +489,7 @@ export function StartPlayCard(props: Props) {
                 disabled={!room}
                 aria-label="Keluar room"
                 title="Keluar room"
-                className="size-11 shrink-0 rounded-full border border-white/40 bg-transparent text-white hover:bg-white/10 disabled:opacity-40"
+                className="size-11 shrink-0 rounded-xl border border-white/40 bg-transparent text-white hover:bg-white/10 disabled:opacity-40"
                 onClick={() => void leaveRoom()}
               >
                 <LogOut className="size-4" />
@@ -497,10 +497,10 @@ export function StartPlayCard(props: Props) {
               <Button
                 size="lg"
                 disabled={!canPlay || !room || !room.isHost}
-                className={cn(pillGreen, 'h-11 flex-1 text-base')}
+                className={cn(btnGreen, 'h-11 flex-1 text-base')}
                 onClick={startFriends}
               >
-                {room?.isHost ? 'Mulai race' : 'Menunggu host…'}
+                {room?.isHost ? 'Gas race!' : 'Nunggu host…'}
               </Button>
             </div>
           </TabsContent>

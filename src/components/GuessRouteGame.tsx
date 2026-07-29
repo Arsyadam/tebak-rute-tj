@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Map,
   MapControls,
@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils'
 import { LogOut } from 'lucide-react'
 import type { GameResult, GameRoundRecord } from '@/types'
 import { GameHudShell, HudBlock, HudTopBar, gameHud } from '@/components/game/GameHud'
+import { hasHardTimer, shouldHideMapLabels, useCountdown } from '@/hooks/useCountdown'
 
 interface Props {
   data: GameData
@@ -35,20 +36,49 @@ interface Props {
 export function GuessRouteGame({
   data,
   rounds,
-  difficultyLevel: _difficultyLevel,
+  difficultyLevel = 'gampang',
   onExit,
   onFinished,
 }: Props) {
+  const hard = hasHardTimer(difficultyLevel)
+  const hideLabels = shouldHideMapLabels(difficultyLevel)
+
   const [index, setIndex] = useState(0)
   const [choice, setChoice] = useState<string>('')
   const [phase, setPhase] = useState<'play' | 'reveal' | 'done'>('play')
   const [score, setScore] = useState(0)
   const [lastOk, setLastOk] = useState(false)
+  const [failReason, setFailReason] = useState<'wrong' | 'timeout' | null>(null)
   const scoreRef = useRef(0)
   const roundRecordsRef = useRef<GameRoundRecord[]>([])
 
   const round = rounds[index]
   const routeColor = round?.route.color || '#108043'
+  const playing = phase === 'play'
+
+  const failRound = useCallback(() => {
+    if (!round || phase !== 'play') return
+    roundRecordsRef.current.push({
+      roundIndex: index,
+      correctAnswer: round.route.code,
+      score: 0,
+      hintUsed: false,
+    })
+    setLastOk(false)
+    setFailReason('timeout')
+    setPhase('reveal')
+  }, [round, phase, index])
+
+  const countdown = useCountdown({
+    enabled: hard && phase !== 'done',
+    onTimeout: failRound,
+    paused: !playing,
+  })
+  const resetCountdown = countdown.reset
+
+  useEffect(() => {
+    if (hard && phase === 'play') resetCountdown()
+  }, [index, hard, phase, resetCountdown])
 
   const routeByCode = useMemo(() => {
     const dict = new globalThis.Map<string, string>()
@@ -76,7 +106,7 @@ export function GuessRouteGame({
   if (!round) {
     return (
       <div className="flex h-full items-center justify-center gap-3 bg-[#ebf4f9] text-[#003324]">
-        Tidak ada rute.
+        Belum ada rute nih.
         <Button onClick={onExit}>Keluar</Button>
       </div>
     )
@@ -85,10 +115,14 @@ export function GuessRouteGame({
   if (phase === 'done') {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 bg-[#ebf4f9] text-[#003324]">
-        <p className="text-sm font-bold tracking-[0.18em] text-[#19483f] uppercase">Selesai</p>
+        <p className="text-sm font-bold tracking-[0.18em] text-[#19483f] uppercase">Selesai!</p>
         <h2 className="font-display text-5xl font-bold">{score.toLocaleString('id-ID')}</h2>
-        <Button onClick={onExit} className="rounded-full bg-[#108043] px-6 font-bold text-white hover:bg-[#12452b]">
-          Kembali ke menu
+        <p className="text-sm font-semibold text-[#19483f]/75">Mantap banget skornya</p>
+        <Button
+          onClick={onExit}
+          className="rounded-xl bg-[#108043] px-6 font-bold text-white hover:bg-[#12452b]"
+        >
+          Balik ke menu
         </Button>
       </div>
     )
@@ -106,6 +140,7 @@ export function GuessRouteGame({
       hintUsed: false,
     })
     setLastOk(ok)
+    setFailReason(ok ? null : 'wrong')
     if (points > 0) {
       const next = scoreRef.current + points
       scoreRef.current = next
@@ -128,6 +163,7 @@ export function GuessRouteGame({
     }
     setIndex((i) => i + 1)
     setChoice('')
+    setFailReason(null)
     setPhase('play')
     sound.click()
   }
@@ -140,6 +176,7 @@ export function GuessRouteGame({
         center={round.center}
         zoom={round.zoom}
         className="h-full w-full"
+        hideLabels={hideLabels && phase === 'play'}
       >
         <MapControls showZoom showCompass position="bottom-right" />
         <FitRoute path={round.path} />
@@ -173,7 +210,7 @@ export function GuessRouteGame({
                     Ronde {index + 1}/{rounds.length}
                   </p>
                   <h1 className="font-display text-lg font-bold leading-tight text-[#003324] sm:text-xl">
-                    Jalur ini rute apa?
+                    Jalur ini rute apa, nih?
                   </h1>
                   <p className={cn('mt-0.5 text-xs font-semibold', gameHud.muted)}>
                     Pilih kode rute yang paling cocok.
@@ -185,10 +222,14 @@ export function GuessRouteGame({
                   <p
                     className={cn(
                       'font-display text-xl font-bold',
-                      lastOk ? 'text-[#108043]' : 'text-rose-500',
+                      lastOk ? 'text-[#108043]' : 'text-[#E4002B]',
                     )}
                   >
-                    {lastOk ? 'Benar!' : 'Belum tepat'}
+                    {lastOk
+                      ? 'Bener banget!'
+                      : failReason === 'timeout'
+                        ? 'Waktu habis — gagal!'
+                        : 'Hmm, belum pas…'}
                   </p>
                   <RouteBadge
                     code={round.route.code}
@@ -201,6 +242,13 @@ export function GuessRouteGame({
                 </div>
               ) : null}
             </HudBlock>
+          }
+          center={
+            hard ? (
+              <HudBlock className={countdown.isUrgent ? gameHud.timerDanger : gameHud.timer}>
+                {countdown.label}
+              </HudBlock>
+            ) : undefined
           }
           right={
             <div className="flex items-center gap-2">
@@ -223,7 +271,7 @@ export function GuessRouteGame({
           <HudBlock className={cn(gameHud.panel, 'w-[min(100%,28rem)] space-y-2 p-3')}>
             {phase === 'reveal' ? (
               <Button className={cn(gameHud.cta, 'w-full')} onClick={finishOrNext}>
-                {index + 1 >= rounds.length ? 'Lihat skor' : 'Lanjut'}
+                {index + 1 >= rounds.length ? 'Lihat skor' : 'Lanjut yuk'}
               </Button>
             ) : (
               <>
@@ -241,7 +289,7 @@ export function GuessRouteGame({
                   </SelectContent>
                 </Select>
                 <Button className={cn(gameHud.cta, 'w-full')} disabled={!choice} onClick={submit}>
-                  Tebak
+                  Tebak yuk
                 </Button>
               </>
             )}

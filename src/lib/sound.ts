@@ -81,6 +81,17 @@ export const sound = {
   tick() {
     tone(760, 0.03, 'triangle', 0.02)
   },
+  /** Urgent countdown tick when under 10s remaining */
+  urgentTick() {
+    tone(880, 0.04, 'square', 0.04)
+    tone(660, 0.05, 'triangle', 0.025, 0.04)
+  },
+  /** Time ran out */
+  timeout() {
+    tone(180, 0.22, 'sawtooth', 0.05)
+    tone(120, 0.28, 'triangle', 0.04, 0.12)
+    noiseBurst(0.12, 0.03, 0.05)
+  },
   join() {
     tone(392, 0.08, 'triangle', 0.04)
     tone(523, 0.12, 'triangle', 0.045, 0.08)

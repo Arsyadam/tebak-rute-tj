@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Map,
   MapControls,
@@ -14,9 +14,16 @@ import { matchStopName, racePoints, type RouteRound, HINT_PENALTY } from '@/lib/
 import { sound } from '@/lib/sound'
 import type { GameRoom, RoomPlayer } from '@/lib/multiplayer'
 import { cn } from '@/lib/utils'
-import { Check, LogOut } from 'lucide-react'
+import { Check, Lightbulb, LogOut } from 'lucide-react'
 import type { DifficultyLevel, GameResult } from '@/types'
 import { GameHudShell, HudBlock, HudTopBar, gameHud } from '@/components/game/GameHud'
+import { RouteBadge } from '@/components/RouteBadge'
+import {
+  canUseHints,
+  hasHardTimer,
+  shouldHideMapLabels,
+  useCountdown,
+} from '@/hooks/useCountdown'
 
 interface Props {
   rounds: RouteRound[]
@@ -35,11 +42,10 @@ type HitToast = {
   by: string
 }
 
-function formatElapsed(ms: number) {
-  const total = Math.max(0, Math.floor(ms / 1000))
-  const m = Math.floor(total / 60)
-  const s = total % 60
-  return `${m}:${String(s).padStart(2, '0')}`
+function partialHint(name: string) {
+  const trimmed = name.trim()
+  if (trimmed.length <= 3) return `${trimmed}…`
+  return `${trimmed.slice(0, 3)}…`
 }
 
 export function NameStopsGame({
@@ -47,10 +53,14 @@ export function NameStopsGame({
   players,
   selfId,
   room,
-  difficultyLevel: _difficultyLevel,
+  difficultyLevel = 'gampang',
   onExit,
   onFinished,
 }: Props) {
+  const hard = hasHardTimer(difficultyLevel)
+  const hintsOn = canUseHints(difficultyLevel)
+  const hideLabels = shouldHideMapLabels(difficultyLevel)
+
   const [roundIndex, setRoundIndex] = useState(0)
   const [guessed, setGuessed] = useState<Set<string>>(new Set())
   const [input, setInput] = useState('')
@@ -61,16 +71,58 @@ export function NameStopsGame({
   const [focusStopId, setFocusStopId] = useState<string | null>(null)
   const [flyNonce, setFlyNonce] = useState(0)
   const [hintUsed, setHintUsed] = useState(false)
+  /** stopId → partial hint string shown on map */
+  const [hints, setHints] = useState<Record<string, string>>({})
   const [elapsedMs, setElapsedMs] = useState(0)
+  const [timedOut, setTimedOut] = useState(false)
   const startedAt = useRef(Date.now())
   const claimedRef = useRef(new Set<string>())
   const inputRef = useRef<HTMLInputElement>(null)
   const roundScoresRef = useRef<Record<number, { score: number; hintUsed: boolean }>>({})
-  const roundRecordsRef = useRef<{ roundIndex: number; correctAnswer: string; score: number; hintUsed: boolean }[]>([])
+  const roundRecordsRef = useRef<
+    { roundIndex: number; correctAnswer: string; score: number; hintUsed: boolean }[]
+  >([])
 
   const round = rounds[roundIndex]
   const routeColor = round?.route.color || '#108043'
   const score = room ? room.self.score : localScore
+  const allDone = round ? guessed.size >= round.stops.length : false
+  const paused = done || allDone || timedOut
+
+  const advanceRound = useCallback(() => {
+    if (!round) return
+    const summary = roundScoresRef.current[roundIndex] || { score: 0, hintUsed: false }
+    roundRecordsRef.current.push({
+      roundIndex,
+      correctAnswer: round.route.code,
+      score: summary.score,
+      hintUsed: summary.hintUsed,
+    })
+
+    if (roundIndex + 1 >= rounds.length) {
+      setDone(true)
+      sound.win()
+      onFinished({
+        score: room ? room.self.score : localScore,
+        hintCount: roundRecordsRef.current.filter((r) => r.hintUsed).length,
+        rounds: roundRecordsRef.current,
+      })
+      return
+    }
+    setRoundIndex((i) => i + 1)
+    sound.click()
+  }, [round, roundIndex, rounds.length, room, localScore, onFinished])
+
+  const onTimeout = useCallback(() => {
+    setTimedOut(true)
+  }, [])
+
+  const countdown = useCountdown({
+    enabled: hard && !done,
+    onTimeout,
+    paused,
+  })
+  const resetCountdown = countdown.reset
 
   useEffect(() => {
     startedAt.current = Date.now()
@@ -80,20 +132,23 @@ export function NameStopsGame({
     setToast(null)
     setFocusStopId(null)
     setHintUsed(false)
+    setHints({})
     setElapsedMs(0)
+    setTimedOut(false)
     inputRef.current?.focus()
     if (!roundScoresRef.current[roundIndex]) {
       roundScoresRef.current[roundIndex] = { score: 0, hintUsed: false }
     }
-  }, [roundIndex])
+    if (hard) resetCountdown()
+  }, [roundIndex, hard, resetCountdown])
 
   useEffect(() => {
-    if (done) return
+    if (done || hard) return
     const id = window.setInterval(() => {
       setElapsedMs(Date.now() - startedAt.current)
     }, 250)
     return () => window.clearInterval(id)
-  }, [roundIndex, done])
+  }, [roundIndex, done, hard])
 
   const celebrate = (hit: HitToast) => {
     setToast(hit)
@@ -115,11 +170,12 @@ export function NameStopsGame({
         setLocalScore((s) => s + points)
         roundScoresRef.current[roundIndex].score += points
         sound.correct()
+        if (hard) resetCountdown()
       } else {
         sound.tick()
       }
     }
-  }, [room, selfId, roundIndex, rounds])
+  }, [room, selfId, roundIndex, rounds, hard, resetCountdown])
 
   const remaining = useMemo(() => {
     if (!round) return []
@@ -136,7 +192,7 @@ export function NameStopsGame({
   if (!round) {
     return (
       <div className="flex h-full items-center justify-center gap-3 bg-[#ebf4f9] text-[#003324]">
-        Tidak ada rute.
+        Belum ada rute nih.
         <Button onClick={onExit}>Keluar</Button>
       </div>
     )
@@ -144,6 +200,7 @@ export function NameStopsGame({
 
   const submit = (e?: React.FormEvent) => {
     e?.preventDefault()
+    if (timedOut || allDone) return
     const text = input.trim()
     if (!text) return
     sound.guess()
@@ -168,6 +225,11 @@ export function NameStopsGame({
     setFlash('ok')
     window.setTimeout(() => setFlash(null), 450)
 
+    // Reset speed clock + hard countdown after each correct halte
+    startedAt.current = Date.now()
+    setElapsedMs(0)
+    if (hard) resetCountdown()
+
     if (room) {
       room.sendGuessStop(hit.id, applied)
     } else {
@@ -180,42 +242,51 @@ export function NameStopsGame({
     }
   }
 
-  const allDone = guessed.size >= round.stops.length
+  const giveHint = () => {
+    if (!hintsOn || remaining.length === 0) return
+    const unhinted = remaining.filter((s) => !hints[s.id])
+    const target = unhinted[0] ?? remaining[0]
+    if (!target) return
+    setHints((h) => ({ ...h, [target.id]: partialHint(target.name) }))
+    setHintUsed(true)
+    roundScoresRef.current[roundIndex].hintUsed = true
+    setFocusStopId(target.id)
+    setFlyNonce((n) => n + 1)
+    sound.click()
+  }
 
   const nextRound = () => {
-    const summary = roundScoresRef.current[roundIndex] || { score: 0, hintUsed: false }
-    roundRecordsRef.current.push({
-      roundIndex,
-      correctAnswer: round.route.code,
-      score: summary.score,
-      hintUsed: summary.hintUsed,
-    })
-
-    if (roundIndex + 1 >= rounds.length) {
-      setDone(true)
-      sound.win()
-      onFinished({
-        score: room ? room.self.score : localScore,
-        hintCount: roundRecordsRef.current.filter((r) => r.hintUsed).length,
-        rounds: roundRecordsRef.current,
-      })
-      return
-    }
-    setRoundIndex((i) => i + 1)
-    sound.click()
+    advanceRound()
   }
 
   if (done) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 bg-[#ebf4f9] text-[#003324]">
-        <p className="text-sm font-bold tracking-[0.18em] text-[#19483f] uppercase">Selesai</p>
+        <p className="text-sm font-bold tracking-[0.18em] text-[#19483f] uppercase">Selesai!</p>
         <h2 className="font-display text-5xl font-bold">{score.toLocaleString('id-ID')}</h2>
-        <Button onClick={onExit} className="rounded-full bg-[#108043] px-6 font-bold text-white hover:bg-[#12452b]">
-          Kembali ke menu
+        <p className="text-sm font-semibold text-[#19483f]/75">Mantap banget skornya</p>
+        <Button
+          onClick={onExit}
+          className="rounded-xl bg-[#108043] px-6 font-bold text-white hover:bg-[#12452b]"
+        >
+          Balik ke menu
         </Button>
       </div>
     )
   }
+
+  const timerNode = hard ? (
+    <HudBlock className={countdown.isUrgent ? gameHud.timerDanger : gameHud.timer}>
+      {countdown.label}
+    </HudBlock>
+  ) : (
+    <HudBlock className={gameHud.timer}>
+      {(() => {
+        const total = Math.max(0, Math.floor(elapsedMs / 1000))
+        return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
+      })()}
+    </HudBlock>
+  )
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-[#ebf4f9]">
@@ -225,6 +296,7 @@ export function NameStopsGame({
         center={round.center}
         zoom={round.zoom}
         className="h-full w-full"
+        hideLabels={hideLabels}
       >
         <MapControls showZoom showCompass position="bottom-right" className="mb-20 mr-3 sm:mb-4" />
         <FitRoute path={round.path} />
@@ -239,6 +311,7 @@ export function NameStopsGame({
         {round.stops.map((s) => {
           const revealed = guessed.has(s.id)
           const justHit = focusStopId === s.id
+          const hintLabel = hints[s.id]
           return (
             <MapMarker key={s.id} longitude={s.lon} latitude={s.lat}>
               <MarkerContent>
@@ -268,6 +341,10 @@ export function NameStopsGame({
                 <MarkerLabel className="rounded-md bg-[#003324]/92 px-1.5 py-0.5 text-[10px] font-bold text-white shadow">
                   {s.name}
                 </MarkerLabel>
+              ) : hintLabel ? (
+                <MarkerLabel className="rounded-md bg-[#F9A01B] px-1.5 py-0.5 text-[10px] font-bold text-[#003324] shadow">
+                  {hintLabel}
+                </MarkerLabel>
               ) : null}
             </MapMarker>
           )
@@ -279,18 +356,19 @@ export function NameStopsGame({
           left={
             <HudBlock className={cn(gameHud.panel, 'w-[min(100%,22rem)] p-3.5 sm:p-4')}>
               <div className="flex items-center gap-3">
-                <div
-                  className={gameHud.badge}
-                  style={{ boxShadow: `inset 0 0 0 3px ${routeColor}` }}
-                >
-                  {round.route.code.length <= 3 ? round.route.code : roundIndex + 1}
-                </div>
+                <RouteBadge
+                  code={round.route.code}
+                  name={round.route.name}
+                  color={routeColor}
+                  agency={round.route.agency}
+                  size="md"
+                />
                 <div className="min-w-0 flex-1">
                   <p className={cn('text-[11px] font-bold uppercase tracking-wide', gameHud.muted)}>
                     Ronde {roundIndex + 1}/{rounds.length}
                   </p>
                   <h1 className="font-display text-lg font-bold leading-tight text-[#003324] sm:text-xl">
-                    Ada halte apa saja di rute ini?
+                    Halte apa aja di rute ini?
                   </h1>
                   <p className={cn('mt-0.5 truncate text-xs font-semibold', gameHud.muted)}>
                     {round.route.name}
@@ -301,7 +379,7 @@ export function NameStopsGame({
               <div className={cn('mt-3', gameHud.softWell)}>
                 <div className="mb-1.5 flex items-center justify-between text-xs font-bold">
                   <span>
-                    {guessed.size} / {round.stops.length} halte ketemu
+                    {guessed.size} / {round.stops.length} udah ketemu
                   </span>
                   <span className={gameHud.accent}>{foundPct}%</span>
                 </div>
@@ -326,7 +404,7 @@ export function NameStopsGame({
                       <span
                         key={p.id}
                         className={cn(
-                          'inline-flex items-center gap-1.5 rounded-full bg-[#EBF4F9] px-2 py-1 text-[11px] font-bold',
+                          'inline-flex items-center gap-1.5 rounded-xl bg-[#EBF4F9] px-2 py-1 text-[11px] font-bold',
                           p.id === selfId && 'ring-2 ring-[#F9A01B]',
                         )}
                       >
@@ -344,14 +422,12 @@ export function NameStopsGame({
                 </p>
               ) : (
                 <p className={cn('mt-3 text-xs font-medium', gameHud.muted)}>
-                  Ketik nama halte di bawah. Zoom/geser peta kalau jalur kurang kebaca.
+                  Ketik nama haltenya di bawah. Zoom/geser peta kalau jalurnya kurang kebaca.
                 </p>
               )}
             </HudBlock>
           }
-          center={
-            <HudBlock className={gameHud.timer}>{formatElapsed(elapsedMs)}</HudBlock>
-          }
+          center={timerNode}
           right={
             <div className="flex items-center gap-2">
               <HudBlock className={cn(gameHud.pill, 'min-w-[5rem] tabular-nums')}>
@@ -377,9 +453,19 @@ export function NameStopsGame({
 
         <div className="flex justify-center">
           <HudBlock className={cn(gameHud.panel, 'w-[min(100%,28rem)] p-3')}>
-            {allDone ? (
+            {timedOut ? (
               <div className="space-y-2">
-                <p className="text-sm font-bold text-[#003324]">Semua halte ketemu!</p>
+                <p className="font-display text-lg font-bold text-[#E4002B]">Waktu habis — gagal!</p>
+                <p className={cn('text-xs font-semibold', gameHud.muted)}>
+                  Keburu kehabisan waktu. Gas ke ronde berikutnya ya.
+                </p>
+                <Button className={cn(gameHud.cta, 'w-full')} onClick={nextRound}>
+                  {roundIndex + 1 >= rounds.length ? 'Lihat skor' : 'Rute berikutnya'}
+                </Button>
+              </div>
+            ) : allDone ? (
+              <div className="space-y-2">
+                <p className="text-sm font-bold text-[#003324]">Wah, semua ketemu nih!</p>
                 <Button className={cn(gameHud.cta, 'w-full')} onClick={nextRound}>
                   {roundIndex + 1 >= rounds.length ? 'Lihat skor' : 'Rute berikutnya'}
                 </Button>
@@ -390,14 +476,25 @@ export function NameStopsGame({
                   ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ketik nama halte…"
+                  placeholder="Ketik nama haltenya…"
                   className={cn(gameHud.input, 'flex-1', flash === 'bad' && 'border-rose-400')}
                   autoComplete="off"
                   autoFocus
                   aria-invalid={flash === 'bad' || undefined}
                 />
+                {hintsOn ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-12 shrink-0 rounded-xl border-[rgba(18,69,43,0.16)] bg-white px-3 font-bold text-[#003324] hover:bg-[#EBF4F9]"
+                    onClick={giveHint}
+                    title="Hint — 3 huruf pertama"
+                  >
+                    <Lightbulb className="size-4" />
+                  </Button>
+                ) : null}
                 <Button type="submit" className={gameHud.cta}>
-                  Tebak
+                  Tebak yuk
                 </Button>
               </form>
             )}

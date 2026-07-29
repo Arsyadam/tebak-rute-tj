@@ -177,13 +177,13 @@ export const MODE_META: Record<
 > = {
   'name-stops': {
     title: 'Halte di Rute',
-    blurb: 'Lihat rute + titik halte. Ketik nama halte secepat mungkin.',
-    tip: 'Multiplayer: siapa duluan nebak dapat poin lebih besar.',
+    blurb: 'Lihat rute + titik halte. Ketik nama haltenya secepat mungkin.',
+    tip: 'Bareng temen: siapa duluan nebak, poinnya lebih gede.',
   },
   'guess-route': {
     title: 'Tebak dari jalur',
-    blurb: 'Lihat bentuk jalur di peta, lalu pilih kode rutemu.',
-    tip: 'Pilih jawaban dari daftar rute.',
+    blurb: 'Lihat bentuk jalur di peta, terus pilih kode rutemu.',
+    tip: 'Pilih jawaban dari daftar rute yang ada.',
   },
   'plan-trip': {
     title: 'Dari A ke B',

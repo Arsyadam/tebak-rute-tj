@@ -191,6 +191,11 @@ type MapProps = {
    * Ignored when an explicit `styles` prop is provided.
    */
   blank?: boolean;
+  /**
+   * Hide place / road / area name labels on the basemap (symbol layers).
+   * Used by hard difficulty so players can't read district names.
+   */
+  hideLabels?: boolean;
   /** Map projection type. Use `{ type: "globe" }` for 3D globe view. */
   projection?: MapLibreGL.ProjectionSpecification;
   /**
@@ -237,6 +242,7 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
     theme: themeProp,
     styles,
     blank = false,
+    hideLabels = false,
     projection,
     viewport,
     onViewportChange,
@@ -387,6 +393,26 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
     if (styleSwapInFlightRef.current) return;
     mapInstance.setProjection(projection);
   }, [mapInstance, isStyleLoaded, projection]);
+
+  // Hide / restore place & road name labels (symbol layers) for hard difficulty.
+  useEffect(() => {
+    if (!mapInstance || !isStyleLoaded) return;
+    if (styleSwapInFlightRef.current) return;
+    const style = mapInstance.getStyle();
+    if (!style?.layers) return;
+    for (const layer of style.layers) {
+      if (layer.type !== "symbol") continue;
+      try {
+        mapInstance.setLayoutProperty(
+          layer.id,
+          "visibility",
+          hideLabels ? "none" : "visible",
+        );
+      } catch {
+        // Layer may have been removed during a style swap.
+      }
+    }
+  }, [mapInstance, isStyleLoaded, hideLabels]);
 
   const contextValue = useMemo(
     () => ({
