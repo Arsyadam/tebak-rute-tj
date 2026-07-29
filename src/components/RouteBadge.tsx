@@ -39,6 +39,32 @@ const KRL_SIGNAGE: Record<string, string> = {
   PNK: 'KRL Lin Tanjung Priok.svg',
 }
 
+/** Display title from signage / corridor naming — matches public/signage filenames */
+export function routeDisplayName(code: string, agency?: string, name?: string): string {
+  if (agency === 'mrt') return 'MRT Lin Utara Selatan'
+  if (agency === 'lrt-jabodebek') {
+    const c = code.toUpperCase()
+    if (c === 'BK' || c.includes('BEKASI')) return 'LRT Jabodebek Lin Bekasi'
+    if (c === 'CB' || c.includes('CIBUBUR')) return 'LRT Jabodebek Lin Cibubur'
+    return 'LRT Jabodebek'
+  }
+  if (agency === 'lrt-jabodetabek') return 'LRT Jakarta Lin 1'
+  if (agency === 'krl' || /^(red|blue|green|brown|pink)/i.test(code)) {
+    const key = krlBadgeCode(code)
+    const file = KRL_SIGNAGE[key]
+    return file ? file.replace(/\.svg$/i, '') : 'KRL'
+  }
+  const jakMatch = code.match(/^JAK\.?(\d+)$/i)
+  if (jakMatch) return `JAK ${jakMatch[1]}`
+  const corridorMatch = code.match(/^(\d{1,2})([A-Z]?)$/i)
+  if (corridorMatch) {
+    const num = corridorMatch[1]!
+    const letter = corridorMatch[2] || ''
+    return letter ? `Koridor ${num}${letter.toUpperCase()}` : `Koridor ${num}`
+  }
+  return name || code
+}
+
 const sizePx: Record<'xs' | 'sm' | 'md' | 'lg', number> = {
   xs: 28,
   sm: 36,
