@@ -126,7 +126,7 @@
   display: flex;
   align-items: center;
   gap: 28px;
-  font-family: 'Rubik', system-ui, sans-serif;
+  font-family: 'PT Sans', 'Segoe UI', sans-serif;
   font-size: 15px;
   font-weight: 600;
   color: #003324;
@@ -145,10 +145,10 @@
   border: 0;
   border-radius: 999px;
   padding: 8px 14px;
-  font-family: 'Rubik', system-ui, sans-serif;
+  font-family: 'PT Sans', 'Segoe UI', sans-serif;
   font-size: 13px;
-  font-weight: 800;
-  font-style: italic;
+  font-weight: 700;
+  font-style: normal;
   cursor: pointer;
   transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), background 160ms ease;
 }
@@ -192,9 +192,9 @@
 .subtitle {
   margin: 18px 0 0;
   max-width: 34ch;
-  font-family: 'Rubik', system-ui, sans-serif;
+  font-family: 'PT Sans', 'Segoe UI', sans-serif;
   font-size: clamp(16px, 2vw, 18px);
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1.45;
   color: #12452b;
 }

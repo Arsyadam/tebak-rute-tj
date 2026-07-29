@@ -15,7 +15,7 @@
   --tg-radius-lg: 24px;
   --tg-radius-xl: 32px;
   --tg-font-display: 'Rubik', system-ui, sans-serif;
-  --tg-font-body: 'Rubik', system-ui, sans-serif;
+  --tg-font-body: 'PT Sans', 'Segoe UI', sans-serif;
 
   /* Color */
   --color-bisque: #ffdecc;
@@ -93,9 +93,9 @@
   --br-48: 48px;
   --br-80: 80px;
 
-  /* Font */
-  --font-inter: 'Rubik', system-ui, sans-serif;
-  --font-lora: 'Rubik', system-ui, sans-serif;
+  /* Font — Rubik for display/titles, PT Sans for body UI */
+  --font-inter: var(--tg-font-body);
+  --font-lora: var(--tg-font-display);
   --font-display: var(--tg-font-display);
   --font-body: var(--tg-font-body);
 
