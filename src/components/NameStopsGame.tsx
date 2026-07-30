@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils'
 import { Check, Lightbulb, LogOut } from 'lucide-react'
 import type { DifficultyLevel, GameResult } from '@/types'
 import { GameHudShell, HudBlock, HudTopBar, gameHud } from '@/components/game/GameHud'
-import { RouteBadge, routeDisplayName } from '@/components/RouteBadge'
+import { RouteBadge } from '@/components/RouteBadge'
 import {
   canUseHints,
   hasHardTimer,
@@ -187,6 +187,7 @@ export function NameStopsGame({
     () => (round ? round.stops.filter((s) => guessed.has(s.id)) : []),
     [round, guessed],
   )
+  const foundPct = round ? Math.round((guessed.size / Math.max(round.stops.length, 1)) * 100) : 0
 
   if (!round) {
     return (
@@ -196,8 +197,6 @@ export function NameStopsGame({
       </div>
     )
   }
-
-  const routeTitle = routeDisplayName(round.route.code, round.route.agency, round.route.name)
 
   const submit = (e?: React.FormEvent) => {
     e?.preventDefault()
@@ -365,23 +364,34 @@ export function NameStopsGame({
                   size="md"
                 />
                 <div className="min-w-0 flex-1">
+                  <p className={cn('text-[11px] font-bold uppercase tracking-wide', gameHud.muted)}>
+                    Ronde {roundIndex + 1}/{rounds.length}
+                  </p>
                   <h1 className="font-display text-lg font-bold leading-tight text-[#003324] sm:text-xl">
-                    {routeTitle}
+                    Halte apa aja di rute ini?
                   </h1>
+                  <p className={cn('mt-0.5 truncate text-xs font-semibold', gameHud.muted)}>
+                    {round.route.name}
+                  </p>
                 </div>
               </div>
 
-              <div className="mt-3">
-                <p className="mb-1 text-xs font-bold text-[#003324]">
-                  {guessed.size} / {round.stops.length} halte
-                </p>
+              <div className={cn('mt-3', gameHud.softWell)}>
+                <div className="mb-1.5 flex items-center justify-between text-xs font-bold">
+                  <span>
+                    {guessed.size} / {round.stops.length} udah ketemu
+                  </span>
+                  <span className={gameHud.accent}>{foundPct}%</span>
+                </div>
                 <div className={gameHud.progressTrack}>
                   <div
                     className="h-full rounded-full bg-[#F9A01B] transition-[width] duration-300 ease-out"
-                    style={{
-                      width: `${Math.round((guessed.size / Math.max(round.stops.length, 1)) * 100)}%`,
-                    }}
+                    style={{ width: `${foundPct}%` }}
                   />
+                </div>
+                <div className={cn('mt-1.5 flex justify-between text-[11px] font-semibold', gameHud.muted)}>
+                  <span>Ketemu {guessed.size}</span>
+                  <span>Sisa {round.stops.length - guessed.size}</span>
                 </div>
               </div>
 
@@ -410,7 +420,11 @@ export function NameStopsGame({
                 <p className="mt-3 line-clamp-2 text-xs font-semibold leading-relaxed text-[#003324]">
                   {foundStops.map((s) => s.name).join(', ')}
                 </p>
-              ) : null}
+              ) : (
+                <p className={cn('mt-3 text-xs font-medium', gameHud.muted)}>
+                  Ketik nama haltenya di bawah. Zoom/geser peta kalau jalurnya kurang kebaca.
+                </p>
+              )}
             </HudBlock>
           }
           center={timerNode}
@@ -437,7 +451,7 @@ export function NameStopsGame({
           }
         />
 
-        <div className="flex justify-start">
+        <div className="flex justify-center">
           <HudBlock className={cn(gameHud.panel, 'w-[min(100%,28rem)] p-3')}>
             {timedOut ? (
               <div className="space-y-2">
@@ -479,7 +493,7 @@ export function NameStopsGame({
                     <Lightbulb className="size-4" />
                   </Button>
                 ) : null}
-                <Button type="submit" className={gameHud.submit}>
+                <Button type="submit" className={gameHud.cta}>
                   Tebak yuk
                 </Button>
               </form>
